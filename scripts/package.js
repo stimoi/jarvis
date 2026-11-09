@@ -39,13 +39,19 @@ const paths = await packager({
   appCopyright: 'JARVIS',
   win32metadata: { ProductName: 'JARVIS', FileDescription: 'JARVIS — assistant vocal', OriginalFilename: 'JARVIS.exe' },
 });
-const appDir = paths[0];
+// Dossier final nommé « JARVIS » (c'est lui qui apparaîtra à la racine de l'archive)
+const appDir = path.join(out, 'JARVIS');
+fs.rmSync(appDir, { recursive: true, force: true });
+fs.renameSync(paths[0], appDir);
 console.log(`› application : ${appDir}${withVoice ? ' (voix Piper incluse)' : ''}`);
 
-// 3) Archive à distribuer
+// 3) Archive à distribuer.
+// Zip créé par scripts/make-zip.ps1 (chemins « JARVIS/fichier », séparateurs « / ») : `tar -a` produisait des entrées
+// « ./fichier » que l'Explorateur Windows ne sait pas lire (« dossier compressé non valide »).
 const dl = path.join(root, 'downloads');
 fs.mkdirSync(dl, { recursive: true });
 const zip = path.join(dl, 'JARVIS-windows-x64.zip');
 fs.rmSync(zip, { force: true });
-run('tar', ['-a', '-c', '-f', zip, '-C', appDir, '.'], root);
+const z = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'scripts', 'make-zip.ps1'), '-Source', appDir, '-Dest', zip, '-Base', 'JARVIS'], { stdio: 'inherit' });
+if (z.status !== 0) throw new Error('Création du zip impossible');
 console.log(`› archive : ${zip} (${(fs.statSync(zip).size / 1e6).toFixed(0)} Mo)`);
