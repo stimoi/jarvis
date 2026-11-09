@@ -13,7 +13,7 @@ const NAME = 'JARVIS-windows-x64.zip';
 const ZIP = path.join(root, 'downloads', NAME);
 const env = { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' };
 const node = (args) => spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit', env });
-const gh = (args, capture = true) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit', shell: process.platform === 'win32' });
+const gh = (args, capture = true) => spawnSync('gh', args, { cwd: root, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
 
 if (!process.argv.includes('--skip-build')) {
   console.log('› construction de l’appli…');
