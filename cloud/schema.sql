@@ -1,0 +1,32 @@
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  pass_hash TEXT NOT NULL,
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  last_seen INTEGER
+);
+CREATE INDEX IF NOT EXISTS devices_user ON devices(user_id);
+CREATE TABLE IF NOT EXISTS invites (
+  code TEXT PRIMARY KEY,
+  created_by INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  used_by INTEGER,
+  used_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS attempts (
+  key TEXT NOT NULL,
+  ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS attempts_key ON attempts(key, ts);
+CREATE TABLE IF NOT EXISTS settings (
+  k TEXT PRIMARY KEY,
+  v TEXT
+);

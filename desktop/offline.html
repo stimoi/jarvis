@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>JARVIS</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #010812; color: #cfeaff; font: 16px 'Bahnschrift', 'Segoe UI', sans-serif; }
+    body { display: grid; place-content: center; text-align: center; gap: 10px;
+      background: radial-gradient(700px 500px at 50% 40%, #0a3a6a55, transparent 70%), linear-gradient(rgba(26,155,255,.07) 1px, transparent 1px) 0 0/36px 36px, linear-gradient(90deg, rgba(26,155,255,.07) 1px, transparent 1px) 0 0/36px 36px, #010812; }
+    h1 { letter-spacing: .45em; font-weight: 300; color: #3de6ff; text-shadow: 0 0 18px #3de6ff88; margin: 0; }
+    p { color: #6f98b8; margin: 0; } button { margin-top: 14px; background: #0a6fc0; color: #00131f; border: 1px solid #3de6ff; padding: 10px 22px; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; font: inherit; }
+    .ring { width: 90px; height: 90px; margin: 0 auto 10px; border: 2px dashed #1a9bff; border-radius: 50%; animation: s 8s linear infinite; }
+    @keyframes s { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="ring"></div>
+  <h1>J.A.R.V.I.S</h1>
+  <p>Impossible de joindre le serveur. Nouvelle tentative automatique…</p>
+  <button id="r">Réessayer</button>
+  <script>
+    const url = new URLSearchParams(location.search).get('url');
+    const go = () => { if (url) location.href = url; };
+    document.getElementById('r').onclick = go;
+    setInterval(go, 8000);
+  </script>
+</body>
+</html>

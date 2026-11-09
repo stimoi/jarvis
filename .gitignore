@@ -1,0 +1,13 @@
+node_modules/
+data/
+.env
+*.log
+dist/
+web/dl/
+.wrangler/
+downloads/
+.dev.vars
+.env.*
+!.env.example
+*.zip
+dist/

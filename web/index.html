@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#010812">
+  <meta name="description" content="JARVIS : un assistant vocal qui écoute « Jarvis » et pilote votre PC, depuis le PC ou le téléphone.">
+  <title>JARVIS — Votre assistant vocal</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/css/hud.css">
+  <link rel="stylesheet" href="/css/landing.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a class="logo caps" href="/">J.A.R.V.I.S</a>
+      <nav class="links">
+        <a class="l" href="#fonctions">Fonctions</a>
+        <a class="l" href="#securite">Sécurité</a>
+        <a class="l" href="#telecharger">Télécharger</a>
+        <a class="btn small" id="nav-login" href="/auth/">Connexion</a>
+        <a class="btn small primary" id="nav-signup" href="/auth/?mode=signup">Créer un compte</a>
+        <a class="btn small primary" id="nav-chat" href="/chat/" hidden>Ouvrir le chat</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">Assistant personnel · Voix · Contrôle du PC</div>
+        <h1>Dites <b>«&nbsp;Jarvis&nbsp;».</b><br>Il s'occupe du reste.</h1>
+        <p class="lead">Un assistant vocal inspiré du majordome d'Iron Man : il vous écoute en permanence, comprend votre ordre, puis agit réellement sur votre ordinateur — depuis votre PC ou votre téléphone. Les actions risquées attendent toujours votre feu vert.</p>
+        <div class="cta">
+          <a class="btn primary" id="cta-chat" href="/auth/">Commencer</a>
+          <a class="btn" href="#telecharger">Télécharger l'application</a>
+        </div>
+      </div>
+      <div>
+        <div id="orb" class="reactor passive"></div>
+        <div id="demo" class="demo"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="fonctions">
+    <div class="wrap">
+      <h2>Fonctions</h2>
+      <p class="sub">Tout ce qu'un vrai JARVIS devrait savoir faire.</p>
+      <div class="grid">
+        <article class="panel card"><div class="ico">◉</div><h4>Détection « Jarvis »</h4><p>Le micro détecte la voix en local ; dès que vous dites « Jarvis », il écoute la suite puis exécute. Mode conversation pour enchaîner sans répéter son nom.</p></article>
+        <article class="panel card"><div class="ico">⌘</div><h4>Pleins pouvoirs sur le PC</h4><p>Applications, fichiers, commandes, souris et clavier, captures d'écran, presse-papiers, volume, recherche web… Jarvis enchaîne les étapes tout seul.</p></article>
+        <article class="panel card"><div class="ico">▭</div><h4>Aussi sur téléphone</h4><p>Installez le site comme une appli : parlez ou écrivez à Jarvis depuis votre poche, il agit sur votre ordinateur à distance.</p></article>
+        <article class="panel card"><div class="ico">◈</div><h4>Voix grave et posée</h4><p>Une voix masculine neuronale, travaillée pour sonner comme un majordome IA : calme, précise, légèrement pince-sans-rire.</p></article>
+        <article class="panel card"><div class="ico">▤</div><h4>Tableau de bord</h4><p>Processeur, mémoire, disques, activité en direct : le HUD de votre PC s'affiche autour du réacteur Arc.</p></article>
+        <article class="panel card"><div class="ico">⚿</div><h4>Comptes privés</h4><p>Chaque compte pilote uniquement ses propres PC. Inscription sur invitation pour garder la maison fermée.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="securite">
+    <div class="wrap">
+      <h2>Sécurité</h2>
+      <p class="sub">Tous les accès, mais jamais sans garde-fou.</p>
+      <div class="grid">
+        <article class="panel card"><h4>Validation humaine</h4><p>Suppression, installation, commande inconnue, extinction… : une demande s'affiche sur tous vos écrans. Les actions « dangereuses » exigent toujours un clic.</p></article>
+        <article class="panel card"><h4>Décidé sur votre PC</h4><p>Le niveau de risque est calculé par l'agent installé chez vous, jamais par le modèle d'IA ni par le serveur.</p></article>
+        <article class="panel card"><h4>Corbeille, audit, arrêt d'urgence</h4><p>Les suppressions sont récupérables, chaque action est journalisée, et un interrupteur suspend instantanément le contrôle du PC.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2>Mise en route</h2>
+      <p class="sub">Trois étapes.</p>
+      <div class="steps">
+        <div class="panel"><h4>Créez votre compte</h4><p class="muted">Avec votre code d'invitation, en quelques secondes.</p></div>
+        <div class="panel"><h4>Installez l'application</h4><p class="muted">Sur le PC à piloter : elle s'associe toute seule à votre compte et reste dans la barre des tâches.</p></div>
+        <div class="panel"><h4>Dites « Jarvis »</h4><p class="muted">Ouvrez le chat, activez le micro, et donnez vos ordres.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="telecharger">
+    <div class="wrap">
+      <h2>Télécharger</h2>
+      <p class="sub">Application Windows.</p>
+      <div id="dl" class="dl-list"><div class="panel muted">Recherche des versions disponibles…</div></div>
+      <p class="muted" style="margin-top:14px">Décompressez l'archive puis lancez <span class="mono">JARVIS.exe</span> : l'icône apparaît près de l'horloge, l'écoute continue même fenêtre fermée.</p>
+    </div>
+  </section>
+
+  <footer class="foot"><div class="wrap">J.A.R.V.I.S — assistant personnel · jarvis.avenox.fr</div></footer>
+  <script type="module" src="/js/landing.js"></script>
+</body>
+</html>

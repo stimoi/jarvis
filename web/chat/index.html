@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#010812">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>JARVIS — Chat</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/css/hud.css">
+  <link rel="stylesheet" href="/css/chat.css">
+</head>
+<body>
+  <div id="app" class="hud" hidden>
+    <header class="top">
+      <div class="os-badge">
+        <div class="caps">Jarvis OS <span class="mono">v2.0</span></div>
+        <div class="mono small">User : <span id="who">—</span></div>
+      </div>
+      <div class="brand caps">J.A.R.V.I.S</div>
+      <button id="btn-panels" class="icon-btn only-mobile" aria-label="Panneaux système">▤</button>
+      <button id="agent-chip" class="chip" title="PC connecté"><span class="dot"></span><span id="agent-name">Aucun PC</span></button>
+      <button id="btn-settings" class="icon-btn" aria-label="Réglages">⚙</button>
+    </header>
+
+    <div class="main">
+      <aside class="col left">
+        <section class="panel">
+          <h3>Processeur</h3>
+          <div class="big-num"><span id="cpu-num">--</span><small>%</small></div>
+          <canvas id="g-cpu" class="graph"></canvas>
+          <dl class="kv"><dt>Cœurs</dt><dd id="cpu-cores">—</dd><dt>Modèle</dt><dd id="cpu-model">—</dd></dl>
+        </section>
+        <section class="panel">
+          <h3>Mémoire</h3>
+          <div class="big-num"><span id="ram-num">--</span><small>%</small></div>
+          <canvas id="g-ram" class="graph"></canvas>
+          <dl class="kv"><dt>Utilisée</dt><dd id="ram-detail">—</dd></dl>
+        </section>
+        <section class="panel">
+          <h3>Stockage</h3>
+          <div id="disks" class="disks"><span class="muted">En attente du PC…</span></div>
+        </section>
+      </aside>
+
+      <main class="center">
+        <div class="stage">
+          <div id="orb" class="reactor off"></div>
+          <div id="state-label" class="state-label caps">Micro désactivé</div>
+          <div id="heard" class="heard"></div>
+          <button id="btn-stop" class="btn small danger" hidden>Arrêter</button>
+        </div>
+        <section class="panel chat">
+          <h3>Journal de communication</h3>
+          <div id="log" class="log" aria-live="polite"></div>
+        </section>
+        <form id="chat-form" class="inputbar" autocomplete="off">
+          <button id="btn-mic" type="button" class="mic" aria-label="Activer l'écoute « Jarvis »" title="Écoute « Jarvis »">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>
+          </button>
+          <input id="chat-input" placeholder="Ordre ou question pour Jarvis…" enterkeyhint="send">
+          <button class="btn primary send" type="submit" aria-label="Envoyer">Envoyer</button>
+        </form>
+      </main>
+
+      <aside class="col right">
+        <section class="panel clock">
+          <h3>Horloge</h3>
+          <div id="clock-time" class="clock-time mono">--:--:--</div>
+          <div id="clock-date" class="muted caps">—</div>
+        </section>
+        <section class="panel">
+          <h3>PC connecté</h3>
+          <dl class="kv">
+            <dt>Nom</dt><dd id="pc-name">—</dd>
+            <dt>Système</dt><dd id="pc-os">—</dd>
+            <dt>Session</dt><dd id="pc-user">—</dd>
+            <dt>Voix</dt><dd id="pc-voice">—</dd>
+            <dt>Allumé depuis</dt><dd id="pc-uptime">—</dd>
+          </dl>
+        </section>
+        <section class="panel">
+          <h3>Entrée audio</h3>
+          <div id="meter" class="meter"></div>
+          <div id="meter-text" class="muted">Micro coupé</div>
+        </section>
+        <section class="panel grow">
+          <h3>Activité</h3>
+          <ul id="activity" class="activity"><li class="muted">Aucune action pour le moment.</li></ul>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Validation d'une action risquée -->
+  <dialog id="approval" class="dlg approval">
+    <div class="badge" id="ap-badge">Validation requise</div>
+    <h2 id="ap-title">JARVIS demande l'autorisation</h2>
+    <pre id="ap-summary"></pre>
+    <p class="muted" id="ap-reason"></p>
+    <div class="countdown"><div id="ap-bar"></div></div>
+    <div class="row">
+      <button id="ap-deny" class="btn danger">Refuser</button>
+      <button id="ap-allow" class="btn primary">Autoriser</button>
+    </div>
+  </dialog>
+
+  <!-- Réglages -->
+  <dialog id="settings" class="dlg">
+    <h2>Réglages</h2>
+    <label class="check"><input type="checkbox" id="set-speak"> Réponses à voix haute</label>
+    <label class="check"><input type="checkbox" id="set-speak-all"> Parler aussi pour les messages écrits</label>
+    <label class="check"><input type="checkbox" id="set-follow"> Mode conversation (pas besoin de redire « Jarvis »)</label>
+    <label class="check"><input type="checkbox" id="set-voiceok"> Valider par la voix les actions « risquées » (jamais les « dangereuses »)</label>
+    <label class="check"><input type="checkbox" id="set-debug"> Afficher ce que Jarvis entend</label>
+    <label>Profondeur de la voix
+      <input type="range" id="set-depth" min="0.78" max="1" step="0.01" style="padding:0">
+    </label>
+    <div id="set-admin" hidden>
+      <h3>Fournisseur IA <span class="muted" id="set-provider"></span></h3>
+      <input id="set-key" type="password" placeholder="Clé API (laisser vide pour ne pas changer)" autocomplete="off">
+      <p class="muted" id="set-keyhint"></p>
+      <h3>Invitations</h3>
+      <div class="row" style="margin-top:0"><button class="btn" id="btn-invite">Créer un code d'invitation</button></div>
+      <div id="invite-list" class="invite-list"></div>
+    </div>
+    <div id="set-desktop" hidden>
+      <h3>Ce PC</h3>
+      <label>Autonomie
+        <select id="set-autonomy">
+          <option value="cautious">Prudent — demande aussi pour les actions modérées</option>
+          <option value="balanced">Équilibré — demande pour les actions risquées</option>
+          <option value="trusting">Confiant — ne demande que pour le dangereux</option>
+        </select>
+      </label>
+    </div>
+    <h3>Appareils</h3>
+    <ul id="set-devices" class="devices"></ul>
+    <div class="row wrap">
+      <button class="btn" id="btn-clear">Effacer l'historique</button>
+      <button class="btn danger" id="btn-logout">Se déconnecter</button>
+      <button class="btn primary" id="btn-close-settings">Fermer</button>
+    </div>
+    <p class="muted" id="set-user"></p>
+  </dialog>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
