@@ -28,13 +28,27 @@ Téléphone : ouvre le site, connecte-toi, « Ajouter à l'écran d'accueil ». 
 - **Sortie** : voix neuronale masculine **Piper** (`fr_FR-tom`) synthétisée *sur le PC* par l'agent, puis assombrie dans le navigateur (lecture à 0,86×, graves renforcés, réverbération discrète). Réglage « Profondeur de la voix » dans les Réglages. Sans Piper, repli sur la voix du navigateur la plus grave disponible.
 - Piper est inclus dans l'archive de l'appli (`resources/piper`) ; en développement il est dans `data/piper` (nécessite le runtime Visual C++ x64).
 
-## Écran à distance (voir et piloter le PC)
+## Écran à distance (voir et piloter le PC, pensé pour le téléphone)
 
-Quand un PC est connecté, le bouton **🖥** du chat ouvre son écran **en direct** (plein écran) :
+Quand un PC est connecté, le bouton **🖥** du chat ouvre son écran **en direct**, en plein écran (et en paysage automatiquement sur téléphone).
 
-- **Souris** : toucher l'écran déplace le curseur du PC et clique (glisser = cliquer-déposer, appui long = clic droit, deux doigts = défilement). Le bouton « Toucher = clic / déplacer » choisit entre cliquer et seulement déplacer. Avec une souris : clic gauche/droit et molette.
-- **Clavier** : sur téléphone, le clavier s'ouvre **toujours** (un champ de saisie reste sélectionné ; si tu le fermes, toucher l'écran le rouvre). Les frappes, accents compris, partent en direct sur le PC. Une barre de touches donne Échap, Tab, flèches, Suppr, Entrée, modificateurs collants (Ctrl, Alt, Maj, Win) et raccourcis (Ctrl+C/V/X/A/Z, Alt+Tab, Win+D).
-- **Qualité** : Fluide / Équilibré / Net (images par seconde, taille, compression). Seules les images qui changent sont envoyées.
+**Affichage et taille de l'écran**
+- **Zoom** : pincer pour zoomer (jusqu'à ×8), deux doigts pour déplacer la vue, boutons ＋ / － / ⤢ ; préréglages *Ajuster*, *Remplir*, ×2, ×3, ×4. La résolution reçue augmente toute seule quand on zoome (qualité *Auto*).
+- **Plein écran + paysage** : le bouton ⛶ (automatique à l'ouverture sur téléphone, réglable). La barre du haut peut se replier (▴).
+- Bord de la vue : en glissant le doigt près d'un bord d'une vue zoomée, elle défile toute seule. Un **ascenseur** à droite (ou à gauche en mode gaucher) fait défiler le PC.
+
+**Souris — trois modes** (⚙ → Souris)
+- **Direct** : toucher = clic à cet endroit ; glisser = cliquer-déposer ; appui long ou deux doigts = clic droit.
+- **Viser** : le curseur suit le doigt (décalé au-dessus pour ne pas être caché) puis reste en place ; boutons *Clic*, *Double*, *Droit*, *Glisser* pour agir avec précision.
+- **Pavé tactile** : comme un trackpad (déplacement relatif, vitesse réglable) ; toucher = clic, deux doigts = clic droit, appui long = glisser.
+
+**Clavier — trois modes** (⌨ ou ⚙ → Clavier)
+- **JARVIS** (défaut sur téléphone) : clavier AZERTY personnalisé, jamais celui du téléphone. Accents en appui long (é è ê ë à ù ç…), Maj / Maj verrouillée, Ctrl / Alt / Win collants, chiffres et symboles, **F1-F12**, flèches, Suppr, Début/Fin, PgHaut/PgBas, raccourcis (Copier, Coller, Couper, Tout, Annuler, Alt+Tab, Win+D…), répétition des touches, vibration. Touches petites / moyennes / grandes.
+- **Téléphone** : le clavier du système, avec une barre de touches spéciales ; le champ est toujours re-sélectionné.
+- **Masqué** : pour un clavier physique (Bluetooth ou PC).
+- En paysage le clavier se superpose et se range tout seul après 5 s sans frappe (touche ⌨ flottante pour le rappeler).
+
+**Réglages** : qualité (Auto / Fluide / Équilibré / Net), gaucher, verrouillage du zoom, orientation, tout est mémorisé.
 
 Techniquement : l'agent PC lance un processus PowerShell persistant (`agent/rc-worker.ps1`) qui capture l'écran (JPEG binaire, curseur dessiné) et injecte les entrées (SendInput) ; les trames passent par le Durable Object en WebSocket binaire. La diffusion ne démarre que si quelqu'un regarde, et s'arrête 30 s après.
 

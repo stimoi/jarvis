@@ -96,31 +96,48 @@
     </div>
   </div>
 
-  <!-- Contrôle à distance : écran du PC + souris + clavier -->
+  <!-- Contrôle à distance : écran du PC + souris + clavier (pensé pour le téléphone) -->
   <div id="rc" class="rc" hidden>
-    <div class="rc-bar">
-      <strong class="caps">Écran à distance</strong>
-      <span id="rc-state" class="muted">—</span>
-      <span class="rc-spacer"></span>
-      <select id="rc-quality" aria-label="Qualité">
-        <option value="fluide">Fluide</option>
-        <option value="equilibre">Équilibré</option>
-        <option value="net">Net</option>
-      </select>
-      <button id="rc-mode" class="btn small" type="button">Toucher = clic</button>
-      <button id="rc-kbd-btn" class="btn small" type="button" aria-label="Clavier">⌨</button>
-      <button id="rc-close" class="btn small danger" type="button" aria-label="Fermer">✕</button>
+    <div id="rc-top" class="rc-top">
+      <button id="rc-close" class="rc-ib danger" type="button" aria-label="Fermer">✕</button>
+      <div class="rc-title"><strong class="caps">Écran à distance</strong><span id="rc-state" class="muted">—</span></div>
+      <button id="rc-fs" class="rc-ib" type="button" aria-label="Plein écran et paysage" title="Plein écran / paysage">⛶</button>
+      <button id="rc-kbd-btn" class="rc-ib" type="button" aria-label="Clavier : JARVIS, téléphone ou masqué" title="Clavier">⌨</button>
+      <button id="rc-opts" class="rc-ib" type="button" aria-label="Réglages de l'écran" title="Réglages">⚙</button>
+      <button id="rc-fold" class="rc-ib" type="button" aria-label="Masquer la barre" title="Masquer la barre">▴</button>
     </div>
-    <div id="rc-view" class="rc-view">
-      <img id="rc-screen" alt="Écran du PC" draggable="false">
+    <div id="rc-stage" class="rc-stage">
+      <div id="rc-view" class="rc-view">
+        <img id="rc-screen" alt="Écran du PC" draggable="false">
+        <div id="rc-marker" class="rc-marker" hidden></div>
+      </div>
+      <div id="rc-rail" class="rc-rail" aria-label="Défilement du PC">
+        <button id="rc-up" class="rc-rb" type="button" aria-label="Défiler vers le haut">▲</button>
+        <div id="rc-rail-drag" class="rc-rail-drag" aria-label="Glisser pour défiler">⇕</div>
+        <button id="rc-down" class="rc-rb" type="button" aria-label="Défiler vers le bas">▼</button>
+      </div>
+      <div id="rc-zoom" class="rc-zoom">
+        <button id="rc-zin" class="rc-rb" type="button" aria-label="Zoom avant">＋</button>
+        <button id="rc-zfit" class="rc-rb" type="button" aria-label="Ajuster / remplir">⤢</button>
+        <button id="rc-zout" class="rc-rb" type="button" aria-label="Zoom arrière">－</button>
+      </div>
+      <div id="rc-aim" class="rc-aim" hidden>
+        <button type="button" data-a="click">Clic</button>
+        <button type="button" data-a="dbl">Double</button>
+        <button type="button" data-a="right">Droit</button>
+        <button type="button" data-a="drag">Glisser</button>
+      </div>
+      <button id="rc-kbfab" class="rc-kbfab" type="button" aria-label="Afficher le clavier" hidden>⌨</button>
+      <button id="rc-unfold" class="rc-unfold" type="button" aria-label="Afficher la barre">▾</button>
       <div id="rc-wait" class="rc-wait">Connexion à l'écran du PC…</div>
-      <div id="rc-hint" class="rc-hint" hidden>⌨ Clavier masqué — touchez l'écran pour le rouvrir</div>
+      <div id="rc-hint" class="rc-hint" hidden></div>
     </div>
-    <div id="rc-keys" class="rc-keys"></div>
-    <!-- Champ de saisie toujours sélectionné : il fait apparaître le clavier du téléphone et capte les frappes -->
-    <input id="rc-input" class="rc-input" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" enterkeyhint="enter" aria-label="Clavier du PC">
+    <div id="rc-keys" class="rc-keys" hidden></div>
+    <div id="rc-kb" class="rc-kb" hidden></div>
+    <div id="rc-sheet" class="rc-sheet" hidden></div>
+    <!-- Champ de saisie caché : capte le clavier physique et, en mode « téléphone », fait apparaître le clavier du téléphone -->
+    <input id="rc-input" class="rc-input" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" enterkeyhint="enter" aria-label="Clavier du PC">
   </div>
-
   <!-- Validation d'une action risquée -->
   <dialog id="approval" class="dlg approval">
     <div class="badge" id="ap-badge">Validation requise</div>

@@ -374,6 +374,7 @@ function connectWs() {
 }
 const wsSend = (m) => S.ws?.readyState === 1 && S.ws.send(JSON.stringify(m));
 const remote = createRemote({ send: wsSend, getAgent: () => S.agents[S.agents.length - 1] });
+window.__remote = remote; // utile pour les tests et le dépannage dans la console
 setInterval(() => S.ws?.readyState === 1 && S.ws.send('ping'), 25000);
 
 function onWs(m) {

@@ -1,7 +1,7 @@
 // Service worker minimal : rend l'appli installable (PWA) et met la coquille en cache.
 // Les appels /api et /ws ne sont jamais mis en cache.
 const CACHE = 'jarvis-shell-v2';
-const SHELL = ['/', '/chat/', '/auth/', '/css/hud.css', '/css/chat.css', '/css/landing.css', '/js/app.js', '/js/wake.js', '/js/worklet.js', '/js/reactor.js', '/js/remote.js', '/js/auth.js', '/js/landing.js', '/manifest.webmanifest', '/icons/icon.svg'];
+const SHELL = ['/', '/chat/', '/auth/', '/css/hud.css', '/css/chat.css', '/css/landing.css', '/js/app.js', '/js/wake.js', '/js/worklet.js', '/js/reactor.js', '/js/remote.js', '/js/keyboard.js', '/js/auth.js', '/js/landing.js', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
