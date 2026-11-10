@@ -269,7 +269,7 @@ const VK = {
   printscreen: 0x2c, capslock: 0x14, '-': 0xbd, '=': 0xbb, ',': 0xbc, '.': 0xbe, '/': 0xbf, ';': 0xba,
   volumeup: 0xaf, volumedown: 0xae, volumemute: 0xad, playpause: 0xb3, nexttrack: 0xb0, prevtrack: 0xb1, stopmedia: 0xb2,
 };
-function vkOf(k) {
+export function vkOf(k) {
   const key = k.trim().toLowerCase();
   if (key in VK) return VK[key];
   if (/^f([1-9]|1[0-2])$/.test(key)) return 0x70 + Number(key.slice(1)) - 1;

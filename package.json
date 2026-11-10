@@ -21,7 +21,8 @@
                     "cf:dev":  "wrangler dev",
                     "cf:deploy":  "wrangler deploy",
                     "test:worker":  "node scripts/e2e.js --worker",
-                    "publish:app":  "node scripts/publish-app.js"
+                    "publish:app":  "node scripts/publish-app.js",
+                    "test:remote":  "node scripts/e2e-remote.js"
                 },
     "dependencies":  {
                          "express":  "^4.21.2",

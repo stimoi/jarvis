@@ -205,7 +205,7 @@ try {
       assert.equal(r.status, 200, page);
       assert.match(r.headers.get('content-security-policy') || '', /script-src 'self'/, `CSP sur ${page}`);
     }
-    for (const p of ['/manifest.webmanifest', '/sw.js', '/js/app.js', '/js/wake.js', '/js/reactor.js', '/js/auth.js', '/js/landing.js', '/css/hud.css', '/css/chat.css', '/css/landing.css', '/icons/icon.svg']) assert.equal((await fetch(base + p)).status, 200, p);
+    for (const p of ['/manifest.webmanifest', '/sw.js', '/js/app.js', '/js/wake.js', '/js/reactor.js', '/js/remote.js', '/js/auth.js', '/js/landing.js', '/css/hud.css', '/css/chat.css', '/css/landing.css', '/icons/icon.svg']) assert.equal((await fetch(base + p)).status, 200, p);
     assert.equal((await fetch(`${base}/api/downloads`)).status, 200);
   });
 } catch (e) {

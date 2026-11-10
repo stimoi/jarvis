@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { userFromToken, deviceFromToken } from './auth.js';
 import { devices } from './db.js';
+import { rcOpts } from '../shared/rc.js';
 
 const send = (ws, msg) => {
   if (ws.readyState === 1) ws.send(JSON.stringify(msg));
@@ -121,7 +122,14 @@ export class Hub {
       return ws.close(4003, 'unauthorized');
     }
 
-    ws.on('message', (raw) => {
+    ws.on('message', (raw, isBinary) => {
+      if (isBinary) {
+        // Trame d'écran (octet 0x01 + JPEG) d'un agent -> uniquement les clients qui regardent cet agent.
+        if (ctx.role === 'agent' && raw[0] === 1) {
+          for (const c of this.u(ctx.userId).clients) if (c.rc === ctx.deviceId && c.readyState === 1) c.send(raw, { binary: true });
+        }
+        return;
+      }
       const text = raw.toString();
       if (text === 'ping') return ws.send('pong');
       let msg;
@@ -139,6 +147,7 @@ export class Hub {
       if (ctx.role === 'client') {
         u.clients.delete(ws);
         this.syncStatsSub(ctx.userId);
+        this.#rcSync(ctx.userId);
       } else if (u.agents.get(ctx.deviceId)?.ws === ws) {
         u.agents.delete(ctx.deviceId);
         this.failAgentCalls(ctx.userId, ctx.deviceId, "Le PC s'est déconnecté.");
@@ -158,6 +167,7 @@ export class Hub {
       send(ws, { type: 'ready', deviceId: dev.id });
       send(ws, { type: 'stats_sub', on: u.clients.size > 0 });
       this.pushState(dev.user_id);
+      this.#rcSync(dev.user_id);
       return { role: 'agent', userId: dev.user_id, deviceId: dev.id };
     }
     const user = userFromToken(token);
@@ -188,6 +198,8 @@ export class Hub {
       }
     } else if (msg.type === 'stats') {
       this.toUser(ctx.userId, { type: 'stats', agentId: ctx.deviceId, stats: msg.stats });
+    } else if (msg.type === 'rc_error') {
+      for (const c of u.clients) if (c.rc === ctx.deviceId) send(c, { type: 'rc_error', message: String(msg.message || '').slice(0, 200) });
     } else if (msg.type === 'tool_result') {
       const c = this.calls.get(msg.callId);
       if (!c || c.userId !== ctx.userId || c.agentId !== ctx.deviceId) return;
@@ -231,9 +243,35 @@ export class Hub {
         this.toUser(ctx.userId, { type: 'approval_resolved', id: msg.id, approved: !!msg.approved });
         break;
       }
+      case 'rc_start': {
+        if (!this.u(ctx.userId).agents.has(msg.agentId)) return send(ws, { type: 'rc_error', message: "Le PC n'est pas connecté." });
+        ws.rc = msg.agentId;
+        ws.rcOpts = rcOpts(msg.opts);
+        send(ws, { type: 'rc_started', agentId: msg.agentId });
+        this.#rcSync(ctx.userId);
+        break;
+      }
+      case 'rc_stop':
+        ws.rc = null;
+        this.#rcSync(ctx.userId);
+        break;
+      case 'rc_input': {
+        const a = ws.rc && this.u(ctx.userId).agents.get(ws.rc);
+        if (a) send(a.ws, { type: 'rc_input', ev: msg.ev });
+        break;
+      }
       case 'ping':
         send(ws, { type: 'pong' });
         break;
+    }
+  }
+
+  /** Dit à chaque agent s'il doit diffuser son écran (au moins un client le regarde). */
+  #rcSync(userId) {
+    const u = this.u(userId);
+    for (const [id, a] of u.agents) {
+      const viewers = [...u.clients].filter((c) => c.rc === id && c.readyState === 1);
+      send(a.ws, { type: 'rc_sub', on: viewers.length > 0, opts: viewers[viewers.length - 1]?.rcOpts });
     }
   }
 }

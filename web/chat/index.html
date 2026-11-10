@@ -23,6 +23,7 @@
       <div class="brand caps">J.A.R.V.I.S</div>
       <button id="btn-panels" class="icon-btn only-mobile" aria-label="Panneaux système">▤</button>
       <button id="agent-chip" class="chip" title="PC connecté"><span class="dot"></span><span id="agent-name">Aucun PC</span></button>
+      <button id="btn-remote" class="icon-btn" aria-label="Voir et piloter l'écran du PC" title="Écran à distance" hidden>🖥</button>
       <button id="btn-settings" class="icon-btn" aria-label="Réglages">⚙</button>
     </header>
 
@@ -93,6 +94,31 @@
         </section>
       </aside>
     </div>
+  </div>
+
+  <!-- Contrôle à distance : écran du PC + souris + clavier -->
+  <div id="rc" class="rc" hidden>
+    <div class="rc-bar">
+      <strong class="caps">Écran à distance</strong>
+      <span id="rc-state" class="muted">—</span>
+      <span class="rc-spacer"></span>
+      <select id="rc-quality" aria-label="Qualité">
+        <option value="fluide">Fluide</option>
+        <option value="equilibre">Équilibré</option>
+        <option value="net">Net</option>
+      </select>
+      <button id="rc-mode" class="btn small" type="button">Toucher = clic</button>
+      <button id="rc-kbd-btn" class="btn small" type="button" aria-label="Clavier">⌨</button>
+      <button id="rc-close" class="btn small danger" type="button" aria-label="Fermer">✕</button>
+    </div>
+    <div id="rc-view" class="rc-view">
+      <img id="rc-screen" alt="Écran du PC" draggable="false">
+      <div id="rc-wait" class="rc-wait">Connexion à l'écran du PC…</div>
+      <div id="rc-hint" class="rc-hint" hidden>⌨ Clavier masqué — touchez l'écran pour le rouvrir</div>
+    </div>
+    <div id="rc-keys" class="rc-keys"></div>
+    <!-- Champ de saisie toujours sélectionné : il fait apparaître le clavier du téléphone et capte les frappes -->
+    <input id="rc-input" class="rc-input" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" enterkeyhint="enter" aria-label="Clavier du PC">
   </div>
 
   <!-- Validation d'une action risquée -->

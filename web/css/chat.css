@@ -67,3 +67,22 @@
   .chip { max-width: 38vw; }
   .send { padding-left: 12px; padding-right: 12px; }
 }
+
+/* ---- Écran à distance (plein écran) ---- */
+.rc { position: fixed; left: 0; right: 0; top: var(--vvt, 0px); height: var(--vvh, 100dvh); z-index: 40; background: #000; display: flex; flex-direction: column; }
+.rc[hidden] { display: none; }
+.rc-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #020b16; border-bottom: 1px solid var(--line2); flex: none; flex-wrap: wrap; }
+.rc-bar .caps { color: var(--cyan); font-size: .8rem; }
+.rc-bar select { width: auto; max-width: 40vw; padding: 5px 8px; font-size: .8rem; clip-path: none; }
+.rc-spacer { flex: 1; }
+.rc-view { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+.rc-view img { max-width: 100%; max-height: 100%; display: block; background: #000; -webkit-user-drag: none; pointer-events: none; image-rendering: auto; }
+.rc-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--cyan); background: #000a; letter-spacing: .12em; text-transform: uppercase; font-size: .85rem; text-align: center; padding: 20px; pointer-events: none; }
+.rc-wait[hidden] { display: none; }
+.rc-hint { position: absolute; left: 10px; right: 10px; bottom: 8px; background: #3a2a05e6; color: var(--warn); border: 1px solid var(--warn); padding: 8px 12px; text-align: center; font-size: .85rem; pointer-events: none; }
+.rc-keys { display: flex; gap: 6px; padding: 6px 8px; overflow-x: auto; background: #020b16; border-top: 1px solid var(--line2); flex: none; scrollbar-width: none; }
+.rc-keys::-webkit-scrollbar { display: none; }
+.rc-key { flex: none; background: rgba(8, 40, 74, .8); border: 1px solid var(--line); color: var(--ice); padding: 9px 12px; font-size: .85rem; min-width: 44px; cursor: pointer; }
+.rc-key:active, .rc-key.on { background: var(--cyan); color: #00131f; border-color: var(--cyan); }
+.rc-input { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; pointer-events: none; font-size: 16px; /* 16 px : évite le zoom automatique d'iOS */ }
+body.rc-open { overflow: hidden; }

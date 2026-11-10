@@ -1,5 +1,6 @@
 import { VoiceInput, findWake, isHallucination } from './wake.js';
 import { mountReactor } from './reactor.js';
+import { createRemote } from './remote.js';
 
 const $ = (s) => document.querySelector(s);
 const desktop = window.jarvisDesktop || null; // fourni par l'appli de bureau (Electron)
@@ -78,6 +79,7 @@ function render() {
   const agent = S.agents[S.agents.length - 1];
   $('#agent-chip').classList.toggle('online', !!agent);
   $('#agent-name').textContent = agent ? agent.name : 'Aucun PC connecté';
+  $('#btn-remote').hidden = !agent;
   $('#pc-name').textContent = agent?.name || '—';
   $('#pc-os').textContent = agent?.os || '—';
   $('#pc-user').textContent = agent?.user || '—';
@@ -356,16 +358,22 @@ function connectWs() {
   // Le jeton voyage dans le sous-protocole (pas dans l'URL).
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`, ['jarvis.v1', S.token]);
   S.ws = ws;
-  ws.onmessage = (e) => { if (e.data === 'pong') return; try { onWs(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+  ws.binaryType = 'arraybuffer';
+  ws.onmessage = (e) => {
+    if (typeof e.data !== 'string') return remote.onFrame(e.data); // trame d'écran (JPEG)
+    if (e.data === 'pong') return;
+    try { onWs(JSON.parse(e.data)); } catch (err) { console.error(err); }
+  };
   ws.onclose = (ev) => {
     if (S.ws !== ws) return;
     S.agents = []; render();
     if (ev.code === 4003 || ev.code === 1006 && !S.opened) { /* jeton refusé ou serveur injoignable */ }
     if (S.token) setTimeout(connectWs, wsBackoff = Math.min(wsBackoff * 1.7, 15000));
   };
-  ws.onopen = () => { S.opened = true; };
+  ws.onopen = () => { S.opened = true; remote.onReconnect(); };
 }
 const wsSend = (m) => S.ws?.readyState === 1 && S.ws.send(JSON.stringify(m));
+const remote = createRemote({ send: wsSend, getAgent: () => S.agents[S.agents.length - 1] });
 setInterval(() => S.ws?.readyState === 1 && S.ws.send('ping'), 25000);
 
 function onWs(m) {
@@ -377,7 +385,9 @@ function onWs(m) {
       S.agents = m.agents; S.busy = m.busy;
       if (!m.busy && S.phase === 'thinking') setPhase('idle');
       render();
+      remote.onAgents(m.agents);
       break;
+    case 'rc_started': case 'rc_error': remote.onMessage(m); break;
     case 'stats': onStats(m.stats); break;
     case 'user_message': if (!mine) addMsg('user', m.text + (m.via === 'voice' ? ' 🎙' : '')); break;
     case 'status':
@@ -583,6 +593,8 @@ $('#chat-form').onsubmit = (e) => {
   sendChat(v, 'text');
 };
 $('#btn-mic').onclick = toggleMic;
+// Ouvrir l'écran à distance DANS le clic : c'est ce geste qui autorise l'ouverture du clavier sur téléphone.
+$('#btn-remote').onclick = () => { if (!remote.open()) addMsg('error', "Aucun PC connecté : impossible d'afficher l'écran."); };
 $('#btn-stop').onclick = cancelAll;
 $('#btn-panels').onclick = () => { $('#app').classList.toggle('panels-open'); setTimeout(() => { drawGraph($('#g-cpu'), S.stats.cpu); drawGraph($('#g-ram'), S.stats.ram); }, 50); };
 window.addEventListener('resize', () => { drawGraph($('#g-cpu'), S.stats.cpu); drawGraph($('#g-ram'), S.stats.ram); });

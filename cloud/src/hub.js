@@ -6,6 +6,7 @@ import { chat } from '../../shared/ai.js';
 import { resolveAi } from '../../shared/aiconf.js';
 import { AGENT_TOOLS, SERVER_TOOLS, toOpenAITools } from '../../shared/tools.js';
 import { systemPrompt } from '../../shared/prompt.js';
+import { rcOpts } from '../../shared/rc.js';
 
 const MAX_STEPS = 14;
 const MAX_TOOL_TEXT = 20000;
@@ -111,19 +112,40 @@ export class UserHub extends DurableObject {
     }
     this.#pushState();
     this.#syncStatsSub();
+    this.#rcSync();
     return new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': 'jarvis.v1' } });
   }
 
   async webSocketMessage(ws, raw) {
+    const att = ws.deserializeAttachment() || {};
+    if (typeof raw !== 'string') {
+      // Trame d'écran binaire (octet 0x01 + JPEG) d'un agent : relayée seulement aux clients qui regardent ce PC.
+      if (att.role === 'agent' && new Uint8Array(raw, 0, 1)[0] === 1) {
+        for (const c of this.#sockets('client')) {
+          if ((c.deserializeAttachment() || {}).rc === att.deviceId) {
+            try { c.send(raw); } catch {}
+          }
+        }
+      }
+      return;
+    }
     let msg;
     try {
-      msg = JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw));
+      msg = JSON.parse(raw);
     } catch {
       return;
     }
-    const att = ws.deserializeAttachment() || {};
     if (att.role === 'agent') this.#fromAgent(ws, att, msg);
-    else this.#fromClient(ws, msg);
+    else this.#fromClient(ws, att, msg);
+  }
+
+  /** Dit à chaque agent s'il doit diffuser son écran (au moins un client le regarde). */
+  #rcSync() {
+    const viewers = this.#sockets('client').map((ws) => ws.deserializeAttachment() || {});
+    for (const a of this.#agents()) {
+      const v = viewers.filter((c) => c.rc === a.deviceId);
+      send(a.ws, { type: 'rc_sub', on: v.length > 0, opts: v[v.length - 1]?.rcOpts });
+    }
   }
 
   async webSocketClose(ws, code, reason) {
@@ -142,6 +164,7 @@ export class UserHub extends DurableObject {
     }
     this.#pushState();
     this.#syncStatsSub();
+    this.#rcSync();
   }
 
   #failAgent(agentId, reason) {
@@ -173,6 +196,10 @@ export class UserHub extends DurableObject {
       this.#pushState();
     } else if (msg.type === 'stats') {
       this.#toClients({ type: 'stats', agentId: att.deviceId, stats: msg.stats });
+    } else if (msg.type === 'rc_error') {
+      for (const c of this.#sockets('client')) {
+        if ((c.deserializeAttachment() || {}).rc === att.deviceId) send(c, { type: 'rc_error', message: String(msg.message || '').slice(0, 200) });
+      }
     } else if (msg.type === 'tool_result') {
       const c = this.calls.get(msg.callId);
       if (!c || c.agentId !== att.deviceId) return;
@@ -199,8 +226,20 @@ export class UserHub extends DurableObject {
     }
   }
 
-  #fromClient(ws, msg) {
-    if (msg.type === 'chat') {
+  #fromClient(ws, att, msg) {
+    if (msg.type === 'rc_start') {
+      const agentId = String(msg.agentId || '');
+      if (!this.#agents().some((a) => a.deviceId === agentId)) return send(ws, { type: 'rc_error', message: "Le PC n'est pas connecté." });
+      ws.serializeAttachment({ ...att, rc: agentId, rcOpts: rcOpts(msg.opts) });
+      send(ws, { type: 'rc_started', agentId });
+      this.#rcSync();
+    } else if (msg.type === 'rc_stop') {
+      ws.serializeAttachment({ ...att, rc: null });
+      this.#rcSync();
+    } else if (msg.type === 'rc_input') {
+      const a = att.rc && this.#agents().find((x) => x.deviceId === att.rc);
+      if (a) send(a.ws, { type: 'rc_input', ev: msg.ev });
+    } else if (msg.type === 'chat') {
       if (typeof msg.text === 'string' && msg.text.trim()) this.#enqueue(msg);
     } else if (msg.type === 'cancel') {
       this.queue = [];

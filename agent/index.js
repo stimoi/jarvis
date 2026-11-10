@@ -7,6 +7,7 @@ import { assess, needsApproval, describe } from './safety.js';
 import { TOOL_IMPL } from './tools.js';
 import { sampleStats } from './stats.js';
 import { ttsAvailable } from './tts.js';
+import { createRemote } from './remote.js';
 
 const log = (...a) => console.log(`[agent ${new Date().toLocaleTimeString('fr-FR')}]`, ...a);
 
@@ -19,6 +20,15 @@ const pending = new Map(); // callId -> resolve(approved)
 function send(msg) {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
+
+// Contrôle à distance (écran + souris + clavier) : trames JPEG envoyées en binaire, préfixées par l'octet 0x01.
+const remote = createRemote({
+  sendJson: (m) => send(m),
+  sendFrame: (jpeg) => {
+    if (ws?.readyState === WebSocket.OPEN && ws.bufferedAmount < 1_000_000) ws.send(Buffer.concat([Buffer.from([1]), jpeg]), { binary: true });
+  },
+  notify: (title, message) => TOOL_IMPL.notify({ title, message }).catch(() => {}),
+});
 
 function setStats(on) {
   clearInterval(statsTimer);
@@ -130,6 +140,10 @@ function connect(cfg) {
       onToolCall(msg).catch((e) => log('erreur outil', e));
     } else if (msg.type === 'approval_decision') {
       pending.get(msg.callId)?.(!!msg.approved);
+    } else if (msg.type === 'rc_sub') {
+      remote.sub(!!msg.on, msg.opts || {});
+    } else if (msg.type === 'rc_input') {
+      remote.input(msg.ev);
     } else if (msg.type === 'stats_sub') {
       setStats(!!msg.on);
     } else if (msg.type === 'auth_error') {
@@ -140,6 +154,7 @@ function connect(cfg) {
   ws.on('close', (code) => {
     clearInterval(pingTimer);
     setStats(false);
+    remote.sub(false);
     for (const resolve of pending.values()) resolve(false);
     const wait = code === 4003 ? 15000 : backoff;
     log(`déconnecté (${code}), nouvelle tentative dans ${Math.round(wait / 1000)}s`);

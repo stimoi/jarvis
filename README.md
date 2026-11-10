@@ -28,6 +28,17 @@ Téléphone : ouvre le site, connecte-toi, « Ajouter à l'écran d'accueil ». 
 - **Sortie** : voix neuronale masculine **Piper** (`fr_FR-tom`) synthétisée *sur le PC* par l'agent, puis assombrie dans le navigateur (lecture à 0,86×, graves renforcés, réverbération discrète). Réglage « Profondeur de la voix » dans les Réglages. Sans Piper, repli sur la voix du navigateur la plus grave disponible.
 - Piper est inclus dans l'archive de l'appli (`resources/piper`) ; en développement il est dans `data/piper` (nécessite le runtime Visual C++ x64).
 
+## Écran à distance (voir et piloter le PC)
+
+Quand un PC est connecté, le bouton **🖥** du chat ouvre son écran **en direct** (plein écran) :
+
+- **Souris** : toucher l'écran déplace le curseur du PC et clique (glisser = cliquer-déposer, appui long = clic droit, deux doigts = défilement). Le bouton « Toucher = clic / déplacer » choisit entre cliquer et seulement déplacer. Avec une souris : clic gauche/droit et molette.
+- **Clavier** : sur téléphone, le clavier s'ouvre **toujours** (un champ de saisie reste sélectionné ; si tu le fermes, toucher l'écran le rouvre). Les frappes, accents compris, partent en direct sur le PC. Une barre de touches donne Échap, Tab, flèches, Suppr, Entrée, modificateurs collants (Ctrl, Alt, Maj, Win) et raccourcis (Ctrl+C/V/X/A/Z, Alt+Tab, Win+D).
+- **Qualité** : Fluide / Équilibré / Net (images par seconde, taille, compression). Seules les images qui changent sont envoyées.
+
+Techniquement : l'agent PC lance un processus PowerShell persistant (`agent/rc-worker.ps1`) qui capture l'écran (JPEG binaire, curseur dessiné) et injecte les entrées (SendInput) ; les trames passent par le Durable Object en WebSocket binaire. La diffusion ne démarre que si quelqu'un regarde, et s'arrête 30 s après.
+
+Garde-fous : même compte obligatoire · bloqué par l'interrupteur **PAUSE** · une notification Windows s'affiche sur le PC au début d'une session · chaque session est écrite dans `agent-audit.log` · désactivable avec `"remote": false` dans `agent.json`. ⚠ Contrairement aux ordres donnés à Jarvis, ce contrôle manuel n'est **pas** filtré par le moteur de risque : tu pilotes toi-même.
 ## Sécurité
 
 Le niveau de risque est calculé **sur le PC par l'agent** (`agent/safety.js`), jamais par le modèle ni par le serveur ; la validation s'affiche sur tous tes appareils (le premier qui répond gagne).
@@ -66,6 +77,7 @@ npm run desktop:local    # appli de bureau en mode local (npm run desktop = mode
 npm run cf:dev           # Worker en local (wrangler dev)
 npm test                 # 18 tests e2e contre le serveur Node
 npm run test:worker      # les mêmes contre le Worker local (Durable Object + D1)
+npm run test:remote      # écran/souris/clavier à distance (vraies images, vrai clic ; -- --worker pour le Worker local)
 npm run check            # test réel de ta clé : LLM + appel d'outil + Whisper + « jarvis »
 ```
 
