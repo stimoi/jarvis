@@ -1,0 +1,63 @@
+/* ===== 2e écran JARVIS : tableau de bord plein écran ===== */
+.dash { min-height: 100vh; padding: var(--gutter); display: flex; flex-direction: column; gap: var(--gutter); }
+.d-top { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 22px; }
+.d-clock { display: flex; align-items: baseline; gap: 8px; }
+.d-time { font-size: clamp(3.2rem, 9vw, 7rem); line-height: 1; color: var(--ice); text-shadow: 0 0 24px #3de6ff66; letter-spacing: .02em; }
+.d-sec { font-size: clamp(1.2rem, 3vw, 2.2rem); color: var(--cyan); opacity: .8; }
+.d-date { font-size: clamp(1rem, 2.2vw, 1.8rem); color: var(--text); text-transform: capitalize; }
+.d-brand { font-size: .9rem; text-align: right; color: var(--cyan); }
+.d-status { display: flex; align-items: center; gap: 10px; }
+.chip { display: flex; align-items: center; gap: 8px; background: rgba(6, 30, 56, .7); border: 1px solid var(--line); padding: 5px 12px; font-size: .82rem; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 8px currentColor; color: var(--bad); flex: none; }
+.chip.online .dot { background: var(--ok); color: var(--ok); }
+.icon-btn { background: rgba(6, 30, 56, .7); border: 1px solid var(--line); width: 38px; height: 38px; font-size: 1.1rem; cursor: pointer; color: var(--ice); }
+.icon-btn:hover { border-color: var(--cyan); }
+
+.d-grid { flex: 1; display: grid; gap: var(--gutter); grid-template-columns: 1fr 1.25fr 1fr; grid-template-areas: "weather agenda pc" "mail agenda feed"; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; }
+.d-mail { grid-area: mail; } .d-weather { grid-area: weather; }
+.mail-item { padding: 6px 0; border-bottom: 1px solid var(--line2); font-size: .92rem; }
+.mail-item .f { color: var(--cyan); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-item .s { color: var(--ice); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .d-agenda { grid-area: agenda; } .d-pc { grid-area: pc; } .d-feed { grid-area: feed; display: flex; flex-direction: column; min-height: 0; }
+.dash .panel { overflow: hidden; }
+.dash .panel h3 { margin-top: 0; }
+
+/* météo */
+.w-now { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.w-icon { font-size: clamp(3rem, 6vw, 5rem); line-height: 1; }
+.w-temp { font-size: clamp(2.6rem, 5vw, 4.4rem); color: var(--ice); line-height: 1; }
+.w-text { font-size: 1.05rem; } .w-text::first-letter { text-transform: uppercase; }
+.w-meta { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+.w-days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+.w-day { border: 1px solid var(--line2); padding: 8px 4px; text-align: center; font-size: .82rem; background: rgba(2, 12, 26, .5); }
+.w-day span { display: block; } .w-day .ic { font-size: 1.5rem; }
+.w-day .hi { color: var(--ice); } .w-day .lo { color: var(--muted); } .w-day .rain { color: var(--cyan); font-size: .75rem; }
+
+/* agenda */
+.a-next { border: 1px solid var(--cyan); background: #3de6ff14; padding: 10px 12px; margin-bottom: 12px; box-shadow: 0 0 18px #3de6ff22; }
+.a-next .t { font-size: 1.3rem; color: var(--ice); } .a-next .w { color: var(--cyan); font-size: .9rem; }
+.a-day { margin: 10px 0 4px; color: var(--cyan); font-size: .82rem; letter-spacing: .12em; text-transform: uppercase; }
+.a-item { display: grid; grid-template-columns: 7.6em 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line2); font-size: 1rem; }
+.a-item .h { font-family: var(--mono); color: var(--muted); }
+.a-item .p { color: var(--muted); font-size: .85rem; display: block; }
+.a-item.past { opacity: .45; } .a-item.now { color: var(--ice); background: #1a9bff1f; } .a-item.now .h { color: var(--ok); }
+
+/* PC */
+.d-meter { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 8px 0; align-items: end; }
+.d-meter .bar { grid-column: 1 / -1; height: 8px; background: var(--line2); }
+.d-meter .bar i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .6s; }
+.d-meter b { font-size: 1.6rem; color: var(--ice); font-weight: 400; }
+#m-disks .disk { margin: 6px 0; }
+
+/* conversation */
+.feed { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; font-size: .95rem; }
+.feed .m { padding: 6px 10px; border-left: 2px solid var(--line); }
+.feed .m.user { border-color: var(--blue); color: var(--ice); } .feed .m.assistant { border-color: var(--cyan); }
+.feed .m.error { border-color: var(--bad); color: var(--bad); }
+.d-form { display: flex; gap: 8px; margin-top: 10px; }
+
+/* écrans étroits / portrait : une colonne */
+@media (max-width: 1100px) {
+  .d-top { grid-template-columns: 1fr auto; } .d-date { grid-column: 1 / -1; } .d-brand { display: none; }
+  .d-grid { grid-template-columns: 1fr; grid-template-areas: "agenda" "weather" "mail" "pc" "feed"; grid-template-rows: none; }
+  .d-feed { min-height: 320px; }
+}

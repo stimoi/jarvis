@@ -26,6 +26,9 @@ export function startMockAi(port) {
       if (last.role === 'tool') return msg(`Résultat reçu : ${String(last.content).slice(0, 80)}`);
       const text = String(last.content);
       if (/systeme/i.test(text)) return call('get_system_info', {});
+      if (/emploi du temps/i.test(text)) return call('get_schedule', { date: 'today' });
+      if (/meteo sans ville/i.test(text)) return call('get_weather', {});
+      if (/outil interdit/i.test(text)) return call('tts_install', { id: 'fr_FR-tom-medium' });
       if (/supprime (.+)/i.test(text)) return call('delete_path', { path: text.match(/supprime (.+)/i)[1].trim() });
       if (/danger/i.test(text)) return call('run_command', { command: 'Remove-Item -Recurse -Force C:\\Temp\\jarvis-e2e-nope', purpose: 'test' });
       if (/note/i.test(text)) return call('remember', { fact: 'aime le café' });

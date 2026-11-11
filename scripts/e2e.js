@@ -87,14 +87,48 @@ try {
     const r = await post('/api/login', { username: 'tony', password: 'motdepasse-solide' });
     assert.equal(r.status, 200); token = r.json.token;
   });
+  let pepperToken = '';
+  const call = async (method, p, tk, body) => {
+    const r = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', ...(tk ? { Authorization: `Bearer ${tk}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json().catch(() => ({})) };
+  };
   if (TARGET === 'worker') {
     await step('invitations : création admin, usage unique, non-admin refusé', async () => {
       const inv = await post('/api/invites', {}, token);
       assert.equal(inv.status, 200); assert.match(inv.json.code, /^[A-Z0-9]{8}$/);
       const r1 = await post('/api/register', { username: 'pepper', password: 'motdepasse-solide', invite: inv.json.code });
       assert.equal(r1.status, 200); assert.equal(r1.json.user.isAdmin, false);
+      pepperToken = r1.json.token;
       assert.equal((await post('/api/register', { username: 'happy', password: 'motdepasse-solide', invite: inv.json.code })).status, 403, 'code réutilisé');
       assert.equal((await post('/api/invites', {}, r1.json.token)).status, 403, 'non-admin');
+    });
+    await step('infos du quotidien : emploi du temps -> /api/dash ; réservé à l’admin pour modifier', async () => {
+      assert.equal((await call('GET', '/api/info', token)).json.hasIcs, false);
+      assert.equal((await call('PUT', '/api/info', pepperToken, { timetable: [] })).status, 403, 'non-admin');
+      const tt = [1, 2, 3, 4, 5, 6, 7].map((day) => ({ day, start: '00:05', end: '23:55', title: 'Créneau test', place: 'B1' }));
+      const put = await call('PUT', '/api/info', token, { timetable: [...tt, { day: 9, start: '1', title: 'invalide' }] });
+      assert.equal(put.status, 200); assert.equal(put.json.info.timetable.length, 7, 'créneau invalide écarté');
+      assert.equal((await call('PUT', '/api/info', token, { tz: 'Mars/Olympus' })).status, 400);
+      assert.equal((await call('PUT', '/api/info', token, { icsUrl: 'http://pas-https.example/cal.ics' })).status, 400, 'ICS en clair refusé');
+      const d = (await call('GET', '/api/dash', token)).json;
+      assert.equal(d.configured.schedule, true); assert.equal(d.configured.city, false);
+      assert.equal(d.schedule.items.filter((i) => i.key === d.schedule.today).length, 1);
+      assert.equal(d.schedule.items.length, 2, 'aujourd’hui + demain');
+    });
+    await step('IA de secours : liste, validation des clés, réservé à l’admin', async () => {
+      const p = (await call('GET', '/api/providers', token)).json;
+      assert.deepEqual(p.fallbacks.map((f) => f.id), ['mistral', 'gemini', 'openrouter', 'cerebras']);
+      assert.ok(p.fallbacks.every((f) => !f.configured));
+      assert.equal(p.order[0], 'principal');
+      assert.equal((await call('GET', '/api/providers', pepperToken)).status, 403);
+      assert.equal((await call('PUT', '/api/providers/mistral', token, { key: 'court' })).status, 400);
+      assert.equal((await call('PUT', '/api/providers/inconnu', token, { key: 'x'.repeat(30) })).status, 404);
+      assert.equal((await call('DELETE', '/api/providers/mistral', token)).status, 200);
+    });
+    await step('voix / mail sans PC connecté : erreurs claires', async () => {
+      const v = await call('GET', '/api/voices', token);
+      assert.equal(v.status, 502); assert.match(v.json.error, /Aucun PC connecté/);
+      assert.equal((await call('GET', '/api/mail', token)).json.offline, true);
     });
   }
   await step('routes protégées sans jeton -> 401', async () => {
@@ -115,6 +149,15 @@ try {
     const st = await next((m) => m.type === 'state' && m.agents.length === 1, 15000, 'agent en ligne');
     assert.equal(st.agents[0].name, 'PC-test');
   });
+
+  if (TARGET === 'worker') {
+    await step('avec un PC : voix (Piper absent ici) et résumé mail passent par l’agent réel', async () => {
+      const v = await call('GET', '/api/voices', token);
+      assert.equal(v.status, 200); assert.equal(v.json.piper, false); assert.equal(v.json.voices.length, 5);
+      assert.equal((await call('POST', '/api/voices', token, { action: 'install', id: '../../x' })).status, 502, 'voix hors catalogue refusée par l’agent');
+      assert.deepEqual((await call('GET', '/api/mail', token)).json, { configured: false });
+    });
+  }
 
   await step('message simple -> réponse du modèle', async () => {
     chat('bonjour');
@@ -179,6 +222,16 @@ try {
     const m = await next((x) => x.type === 'assistant_message');
     assert.match(m.text, /Mémorisé/);
   });
+  if (TARGET === 'worker') {
+    await step('JARVIS lit l’emploi du temps (get_schedule) et refuse un outil interne (liste blanche)', async () => {
+      chat("quel est mon emploi du temps");
+      assert.match((await next((x) => x.type === 'assistant_message')).text, /Aujourd'hui : 00:05-23:55 Créneau test/);
+      chat('meteo sans ville');
+      assert.match((await next((x) => x.type === 'assistant_message')).text, /Aucune ville configurée/);
+      chat('utilise un outil interdit');
+      assert.match((await next((x) => x.type === 'assistant_message')).text, /outil inconnu \(tts_install\)/);
+    });
+  }
   await step('mise à jour à distance : version de l’appli, ordre relayé à l’agent, statut relayé (nettoyé) au client', async () => {
     const dev2 = (await post('/api/devices', { name: 'PC-maj' }, token)).json;
     const fake = new WebSocket(`ws://127.0.0.1:${PORT}/ws`, ['jarvis.v1', dev2.token]);

@@ -175,6 +175,13 @@ export function assess(name, a = {}) {
     case 'web_search': case 'list_windows': case 'get_system_info': case 'list_processes':
     case 'set_volume': case 'media_control': case 'notify': case 'wait': case 'mouse_move': case 'tts':
       return res('safe', '');
+    case 'mail_list': case 'mail_read': return res('moderate', 'Lecture de la boîte mail');
+    case 'mail_summary': return res('safe', ''); // affichage du 2e écran de l'utilisateur (jamais appelable par le modèle : liste blanche côté hub)
+    case 'mail_send': return res('risky', `Envoi d'un e-mail à ${a.to}`);
+    case 'send_message': return res('risky', `Envoi d'un message ${a.channel}`);
+    // Voix de JARVIS : réglage demandé par un clic sur le site ; téléchargement limité aux voix du catalogue (adresses fixes).
+    case 'tts_voices': case 'tts_select': case 'tts_install':
+      return res('safe', '');
     case 'screenshot': case 'clipboard_read': return res('moderate', 'Capture de données à l\'écran / presse-papiers');
     case 'clipboard_write': case 'focus_window': case 'mouse_scroll': return res('moderate', '');
     case 'mouse_click': return res('moderate', 'Clic souris');
@@ -205,6 +212,8 @@ export function describe(name, a = {}) {
     case 'kill_process': return `Arrêter le processus : ${a.target}`;
     case 'power': return `Alimentation : ${a.action}`;
     case 'open_app': return `Ouvrir l'application : ${a.name}`;
+    case 'mail_send': return `Envoyer un e-mail à ${a.to}\nObjet : ${String(a.subject).slice(0, 150)}\n\n${String(a.body).slice(0, 700)}`;
+    case 'send_message': return `Envoyer sur ${a.channel} :\n${String(a.text).slice(0, 700)}`;
     case 'key_press': return `Raccourci clavier : ${a.keys}`;
     case 'keyboard_type': return `Taper : ${String(a.text).slice(0, 200)}`;
     default: return `${name}(${JSON.stringify(a).slice(0, 500)})`;

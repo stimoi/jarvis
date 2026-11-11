@@ -611,13 +611,116 @@ async function openSettings() {
     $('#set-key').hidden = !!s.cloud;
     $('#set-provider').textContent = `— ${s.provider} / ${s.chatModel}`;
     $('#set-keyhint').textContent = s.cloud ? `Clé enregistrée côté Cloudflare (${s.keyHint}).` : s.hasKey ? `Clé enregistrée (${s.keyHint}).` : 'Aucune clé enregistrée.';
-    if (s.isAdmin) { loadInvites(); if (s.cloud) loadProviders(); }
+    if (s.isAdmin) { loadInvites(); if (s.cloud) { loadProviders(); loadInfoSettings(); } }
   } catch {}
   await loadDevices();
+  loadVoices(); loadAccounts();
   if (!d.open) d.showModal();
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
-const PROV_LABEL = { principal: 'Groq', cloudflare: 'Cloudflare', mistral: 'Mistral', gemini: 'Gemini', openrouter: 'OpenRouter', cerebras: 'Cerebras' };
+// Boîte mail et messageries : réglées uniquement depuis l'appli de bureau (les identifiants restent chiffrés sur le PC).
+async function loadAccounts() {
+  const sec = $('#set-accounts');
+  if (!desktop?.accounts) { sec.hidden = true; return; }
+  sec.hidden = false;
+  try {
+    const st = await desktop.accounts('status');
+    $('#acc-mail-state').textContent = st.mail.configured ? `— ${st.mail.address}` : '— non configurée';
+    $('#btn-mail-remove').hidden = !st.mail.configured;
+    $('#acc-msg-state').textContent = `— ${[st.messaging.telegram && 'Telegram', st.messaging.discord && 'Discord'].filter(Boolean).join(', ') || 'aucun canal'}`;
+  } catch (e) { $('#acc-mail-state').textContent = `— ${e.message}`; }
+}
+$('#acc-preset').onchange = (e) => { $('#acc-custom').hidden = e.target.value !== 'custom'; };
+const hostPort = (s, def) => { const m = /^([^:\s]+)(?::(\d+))?$/.exec(String(s).trim()); return m ? { host: m[1], port: Number(m[2]) || def, secure: (Number(m[2]) || def) !== 587 } : null; };
+$('#btn-mail-save').onclick = async (ev) => {
+  const btn = ev.currentTarget; const preset = $('#acc-preset').value;
+  const args = { preset, address: $('#acc-addr').value.trim(), password: $('#acc-pass').value };
+  if (preset === 'custom') { args.imap = hostPort($('#acc-imap').value, 993); args.smtp = hostPort($('#acc-smtp').value, 465); if (!args.imap || !args.smtp) { addMsg('error', 'Serveurs IMAP / SMTP invalides.'); return; } }
+  btn.disabled = true; btn.textContent = 'Test de connexion…';
+  try { await desktop.accounts('mail-setup', args); $('#acc-pass').value = ''; addMsg('sys', 'Boîte mail connectée. Essaie : « Jarvis, ai-je de nouveaux mails ? »'); }
+  catch (e) { addMsg('error', String(e.message).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
+  btn.disabled = false; btn.textContent = 'Tester et enregistrer'; loadAccounts();
+};
+$('#btn-mail-remove').onclick = async () => { await desktop.accounts('mail-remove'); addMsg('sys', 'Boîte mail retirée de ce PC.'); loadAccounts(); };
+$('#btn-msg-save').onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  const args = { telegramToken: $('#acc-tg-token').value.trim(), telegramChatId: $('#acc-tg-chat').value.trim(), discordUrl: $('#acc-dc').value.trim() };
+  if (!args.telegramToken) { delete args.telegramToken; delete args.telegramChatId; }
+  if (!args.discordUrl) delete args.discordUrl;
+  if (!args.telegramToken && !args.discordUrl) { addMsg('error', 'Renseigne Telegram ou Discord.'); return; }
+  btn.disabled = true;
+  try { await desktop.accounts('msg-setup', args); for (const i of ['#acc-tg-token', '#acc-tg-chat', '#acc-dc']) $(i).value = ''; addMsg('sys', 'Messagerie enregistrée. « Jarvis, envoie un message Telegram… » demandera ta validation.'); }
+  catch (e) { addMsg('error', String(e.message).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
+  btn.disabled = false; loadAccounts();
+};
+async function loadVoices() {
+  const box = $('#voice-list');
+  try {
+    const v = await json('/api/voices');
+    if (!v.piper) { $('#set-voices').hidden = true; return; }
+    $('#set-voices').hidden = false;
+    $('#voice-cur').textContent = `— ${v.voices.find((x) => x.current)?.label || ''}`;
+    box.replaceChildren();
+    for (const x of v.voices) {
+      const row = document.createElement('div'); row.className = 'prov';
+      const head = document.createElement('div'); head.className = 'prov-head';
+      const name = document.createElement('strong'); name.textContent = `${x.current ? '🟢' : x.installed ? '⚪' : '⬇'} ${x.label}`;
+      const desc = document.createElement('span'); desc.className = 'muted'; desc.textContent = x.desc;
+      head.append(name, desc); row.append(head);
+      const btns = document.createElement('div'); btns.className = 'row'; btns.style.marginTop = '4px';
+      const act = (label, action) => {
+        const b = document.createElement('button'); b.className = 'btn small'; b.type = 'button'; b.textContent = label;
+        b.onclick = async () => {
+          b.disabled = true; b.textContent = action === 'install' ? 'Téléchargement…' : '…';
+          try { const r = await json('/api/voices', { method: 'POST', body: { action, id: x.id } }); addMsg('sys', r.message); speak('Bonsoir. Je suis JARVIS, à votre service.'); }
+          catch (e) { addMsg('error', e.message); }
+          loadVoices();
+        };
+        return b;
+      };
+      if (x.current) { const p = document.createElement('span'); p.className = 'muted'; p.textContent = 'Voix active'; btns.append(p); }
+      else if (x.installed) btns.append(act('Utiliser', 'select'));
+      else btns.append(act(`Télécharger (${x.mb} Mo) et utiliser`, 'install'));
+      row.append(btns); box.append(row);
+    }
+  } catch { $('#set-voices').hidden = true; }
+}
+const DAY_NAMES =['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
+const DAY_FULL = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+function ttToText(list) {
+  return (list || []).map((t) => `${DAY_FULL[t.day - 1]} ${t.start}${t.end ? `-${t.end}` : ''} ${t.title}${t.place ? ` @ ${t.place}` : ''}`).join('\n');
+}
+function ttFromText(text) {
+  const out = []; const bad = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim(); if (!line) continue;
+    const m = /^([a-zéû]+)\.?\s+(\d{1,2}[:h]\d{2})(?:\s*[-–àa]\s*(\d{1,2}[:h]\d{2}))?\s+(.+?)(?:\s*@\s*(.+))?$/i.exec(line);
+    const day = m ? DAY_NAMES.indexOf(m[1].toLowerCase().slice(0, 3)) : -1;
+    if (!m || day < 0) { bad.push(line); continue; }
+    out.push({ day: day + 1, start: m[2].replace('h', ':'), end: (m[3] || '').replace('h', ':'), title: m[4].trim(), place: (m[5] || '').trim() });
+  }
+  return { out, bad };
+}
+async function loadInfoSettings() {
+  try {
+    const i = await json('/api/info');
+    $('#set-info').hidden = false;
+    $('#info-city').value = i.city; $('#info-ics').value = '';
+    $('#info-ics-hint').textContent = i.hasIcs ? `Calendrier enregistré (${i.icsHint}).` : 'Aucun calendrier enregistré.';
+    $('#info-tt').value = ttToText(i.timetable);
+  } catch { $('#set-info').hidden = true; }
+}
+$('#btn-info-save').onclick = async (ev) => {
+  const btn = ev.currentTarget; const { out, bad } = ttFromText($('#info-tt').value);
+  if (bad.length) { addMsg('error', `Créneau illisible : « ${bad[0]} » (format : lundi 08:00-09:30 Maths @ salle 12).`); return; }
+  const body = { city: $('#info-city').value.trim(), timetable: out };
+  const ics = $('#info-ics').value.trim(); if (ics) body.icsUrl = ics;
+  btn.disabled = true;
+  try { const r = await json('/api/info', { method: 'PUT', body }); addMsg('sys', r.notes.length ? r.notes.join(' · ') : 'Enregistré.'); loadInfoSettings(); }
+  catch (e) { addMsg('error', e.message); }
+  btn.disabled = false;
+};
+const PROV_LABEL ={ principal: 'Groq', cloudflare: 'Cloudflare', mistral: 'Mistral', gemini: 'Gemini', openrouter: 'OpenRouter', cerebras: 'Cerebras' };
 async function loadProviders() {
   try {
     const st = await json('/api/providers');

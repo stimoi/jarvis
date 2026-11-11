@@ -28,6 +28,20 @@ Téléphone : ouvre le site, connecte-toi, « Ajouter à l'écran d'accueil ». 
 - **Sortie** : voix neuronale masculine **Piper** (`fr_FR-tom`) synthétisée *sur le PC* par l'agent, puis assombrie dans le navigateur (lecture à 0,86×, graves renforcés, réverbération discrète). Réglage « Profondeur de la voix » dans les Réglages. Sans Piper, repli sur la voix du navigateur la plus grave disponible.
 - Piper est inclus dans l'archive de l'appli (`resources/piper`) ; en développement il est dans `data/piper` (nécessite le runtime Visual C++ x64).
 
+- **Changer de voix** : Réglages → « Voix de JARVIS » (Tom par défaut ; Gilles, Pierre, Jessica, Siwis). Une voix se télécharge une fois (≈ 60-75 Mo, dépôt officiel `rhasspy/piper-voices`) par clic sur « Télécharger », puis se sélectionne. Aucune URL libre : seul le catalogue de `agent/tts.js` est accepté.
+
+## IA de secours (quand Groq atteint sa limite)
+
+Ordre d'essai, automatique : **Groq** (chaîne de modèles) → fournisseurs de secours dont une clé est enregistrée (**Mistral**, **Gemini**, **OpenRouter**, **Cerebras**) → **Cloudflare Workers AI** (aucune clé, quota gratuit quotidien du compte, `@cf/openai/gpt-oss-120b` puis `-20b`, Llama 4 Scout). La transcription vocale bascule aussi sur le Whisper de Workers AI.
+Pour ajouter une clé de secours : Réglages → « IA de secours » (clé testée avant enregistrement, chiffrée AES-GCM dans D1), ou secret Cloudflare (`MISTRAL_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`). Les clés se créent sur les sites des fournisseurs (liens dans les Réglages) ; les quotas gratuits changent souvent.
+
+## 2e écran, météo, emploi du temps, mails, messages
+
+- **2e écran** : `https://jarvis.avenox.fr/dash/` (ou menu de l'icône → « Ouvrir le 2e écran » : plein écran sur le moniteur secondaire). Horloge, météo (Open-Meteo, sans clé), emploi du temps, boîte mail (non lus), état du PC, conversation + zone de saisie. Les mails sont lus sur ton PC à la demande : rien n'est stocké côté site.
+- **Météo / emploi du temps** : Réglages → « Infos du quotidien » (admin) : ville, lien de calendrier **ICS** (Google Agenda « adresse secrète au format iCal », ENT, Pronote…) et/ou planning hebdomadaire saisi à la main (`lundi 08:00-09:30 Maths @ salle 12`). « Jarvis, qu'ai-je demain ? », « quel temps fait-il ? ».
+- **Boîte mail** (appli de bureau → Réglages) : IMAP/SMTP avec **mot de passe d'application** ; identifiants chiffrés par Windows (DPAPI) sur le PC, jamais envoyés au site. Lire = niveau « modéré » ; **envoyer un mail demande toujours ta validation**. Le contenu des mails est traité comme une donnée, jamais comme une instruction.
+- **Messages** : Telegram (bot) et Discord (webhook), même coffre chiffré, **validation obligatoire** à chaque envoi.
+
 ## Écran à distance (voir et piloter le PC, pensé pour le téléphone)
 
 Quand un PC est connecté, le bouton **🖥** du chat ouvre son écran **en direct**, en plein écran (et en paysage automatiquement sur téléphone).
@@ -128,4 +142,6 @@ scripts/   e2e.js, package.js, publish-app.js, live-check.js, make-icons.js
 - L'agent cible **Windows** (PowerShell, SendInput).
 - Pas de notification push quand l'appli mobile est fermée (une validation en attente apparaît à la réouverture ; expire après 2 min).
 - Pas de double authentification : mot de passe long conseillé.
+- Boîte mail : testée contre de faux serveurs IMAP/SMTP, pas contre une vraie boîte. Outlook/Hotmail personnels imposent parfois OAuth (mot de passe d'application refusé).
+- Pas de jeu vidéo automatisé (Fortnite…) : trop lent via une IA de chat et contraire aux règles anti-triche.
 - Les noms de modèles gratuits évoluent : `AI_CHAT_MODEL` / `AI_FALLBACK_MODELS` (variables du Worker) permettent d'ajuster.

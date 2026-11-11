@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('jarvisDesktop', {
   getAutonomy: () => ipcRenderer.invoke('jarvis:get-autonomy'),
   setAutonomy: (v) => ipcRenderer.invoke('jarvis:set-autonomy', v),
   appInfo: () => ipcRenderer.invoke('jarvis:app-info'),
+  // Boîte mail et messageries (identifiants chiffrés sur ce PC, jamais envoyés au site)
+  accounts: (op, args) => ipcRenderer.invoke('jarvis:acct', op, args),
   // Mises à jour à distance (version signée, téléchargée puis installée au redémarrage)
   update: {
     state: () => ipcRenderer.invoke('jarvis:update-state'),

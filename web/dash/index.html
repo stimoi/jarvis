@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#010812">
+  <title>JARVIS — 2e écran</title>
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/hud.css">
+  <link rel="stylesheet" href="/css/dash.css">
+</head>
+<body class="dash">
+  <header class="d-top">
+    <div class="d-clock">
+      <div class="d-time mono" id="d-time">--:--</div>
+      <div class="d-sec mono" id="d-sec">--</div>
+    </div>
+    <div class="d-date" id="d-date"></div>
+    <div class="d-brand caps">J.A.R.V.I.S <span class="muted">· 2e écran</span></div>
+    <div class="d-status">
+      <span class="chip" id="d-pc"><span class="dot"></span><span id="d-pc-name">Aucun PC</span></span>
+      <button class="icon-btn" id="d-full" type="button" aria-label="Plein écran" title="Plein écran">⛶</button>
+    </div>
+  </header>
+
+  <main class="d-grid">
+    <section class="panel d-weather" id="p-weather">
+      <h3>Météo <span class="muted" id="w-city"></span></h3>
+      <div id="w-body" class="muted">Chargement…</div>
+    </section>
+
+    <section class="panel d-mail" id="p-mail">
+      <h3>Boîte mail <span class="muted" id="mail-count"></span></h3>
+      <div id="mail-body" class="muted">Chargement…</div>
+    </section>
+
+    <section class="panel d-agenda" id="p-agenda">
+      <h3>Emploi du temps</h3>
+      <div id="a-next" class="a-next" hidden></div>
+      <div id="a-body" class="muted">Chargement…</div>
+    </section>
+
+    <section class="panel d-pc" id="p-pc">
+      <h3>Ordinateur</h3>
+      <div class="d-meter"><span>Processeur</span><b class="mono" id="m-cpu">--</b><div class="bar"><i id="b-cpu"></i></div></div>
+      <div class="d-meter"><span>Mémoire</span><b class="mono" id="m-ram">--</b><div class="bar"><i id="b-ram"></i></div></div>
+      <div id="m-disks"></div>
+      <div class="muted" id="m-up"></div>
+    </section>
+
+    <section class="panel d-feed" id="p-feed">
+      <h3>Conversation</h3>
+      <div id="feed" class="feed"><div class="muted">Dis « Jarvis » sur l'appli : les échanges s'affichent ici.</div></div>
+      <form id="d-form" class="d-form" autocomplete="off">
+        <input id="d-input" type="text" placeholder="Demander quelque chose à Jarvis…" maxlength="500">
+        <button class="btn primary" type="submit">Envoyer</button>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/js/dash.js"></script>
+</body>
+</html>

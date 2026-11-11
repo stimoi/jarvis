@@ -4,7 +4,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { chat } from '../../shared/ai.js';
 import { loadProviders } from './providers.js';
-import { AGENT_TOOLS, SERVER_TOOLS, toOpenAITools } from '../../shared/tools.js';
+import { AGENT_TOOLS, SERVER_TOOLS, INFO_TOOLS, toOpenAITools } from '../../shared/tools.js';
+import { infoTool } from './info.js';
 import { systemPrompt } from '../../shared/prompt.js';
 import { rcOpts, cleanAppState } from '../../shared/rc.js';
 
@@ -81,6 +82,26 @@ export class UserHub extends DurableObject {
     const r = await this.#callTool(agent.deviceId, 'tts', { text }, 60000);
     if (!r.ok || !r.audio) throw new Error(r.error || 'Synthèse impossible');
     return r.audio;
+  }
+
+  /** Résumé de la boîte mail pour le 2e écran (lu sur le PC, rien n'est stocké ici). */
+  async mailSummary() {
+    const agent = this.#agents().pop();
+    if (!agent) return { offline: true };
+    const r = await this.#callTool(agent.deviceId, 'mail_summary', {}, 25000);
+    if (!r.ok) return { error: r.error || 'Échec' };
+    try { return JSON.parse(r.text); } catch { return { error: 'Réponse illisible' }; }
+  }
+
+  /** Voix de Piper sur le PC : action = 'list' | 'select' | 'install'. */
+  async voices(action, id) {
+    const agent = this.#agents().pop();
+    if (!agent) throw new Error("Aucun PC connecté : la voix se règle depuis l'appli de bureau sur ton PC.");
+    const name = { list: 'tts_voices', select: 'tts_select', install: 'tts_install' }[action];
+    if (!name) throw new Error('Action inconnue.');
+    const r = await this.#callTool(agent.deviceId, name, action === 'list' ? {} : { id }, action === 'install' ? 11 * 60 * 1000 : 30000);
+    if (!r.ok) throw new Error(r.error || 'Échec');
+    return r.text;
   }
 
   // ---------------------------------------------------------------- connexion WebSocket
@@ -316,7 +337,7 @@ export class UserHub extends DurableObject {
       ...history,
       { role: 'user', content: text },
     ];
-    const tools = toOpenAITools([...(agent ? AGENT_TOOLS : []), ...SERVER_TOOLS]);
+    const tools = toOpenAITools([...(agent ? AGENT_TOOLS : []), ...SERVER_TOOLS, ...INFO_TOOLS]);
     const ai = await loadProviders(this.env);
 
     let final = '';
@@ -381,6 +402,10 @@ export class UserHub extends DurableObject {
       } else if (name === 'forget') {
         const c = this.sql.exec('DELETE FROM memories WHERE id = ?', Number(args.id)).rowsWritten;
         out = { text: c ? 'Oublié.' : 'Souvenir introuvable.' };
+      } else if (name === 'get_weather' || name === 'get_schedule') {
+        out = { text: await infoTool(this.env, name, args) };
+      } else if (!AGENT_TOOLS.some((t) => t.name === name)) {
+        out = { text: `Erreur : outil inconnu (${name}).` };
       } else if (!agent) {
         out = { text: "Erreur : aucun PC n'est connecté." };
       } else {

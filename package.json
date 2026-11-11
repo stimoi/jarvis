@@ -1,6 +1,6 @@
 {
     "name":  "jarvis",
-    "version":  "0.4.0",
+    "version":  "0.5.0",
     "private":  true,
     "description":  "JARVIS - assistant vocal propulsé par l\u0027IA (Groq / xAI), contrôle du PC depuis le PC ou le téléphone",
     "type":  "module",
@@ -17,6 +17,9 @@
                     "test":  "node scripts/e2e.js",
                     "check":  "node scripts/live-check.js",
                     "test:ai":  "node scripts/test-ai.js",
+                    "test:info":  "node scripts/test-info.js",
+                    "test:tts":  "node scripts/test-tts.js",
+                    "test:mail":  "node scripts/test-mail.js",
                     "test:update":  "node scripts/test-update.js",
                     "desktop:local":  "electron desktop/main.cjs --local",
                     "package":  "node scripts/package.js",

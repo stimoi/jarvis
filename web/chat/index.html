@@ -172,6 +172,11 @@
     <label>Profondeur de la voix
       <input type="range" id="set-depth" min="0.78" max="1" step="0.01" style="padding:0">
     </label>
+    <div id="set-voices" hidden>
+      <h3>Voix de JARVIS <span class="muted" id="voice-cur"></span></h3>
+      <p class="muted">Voix neuronales Piper, sur ton PC. Une voix se télécharge une seule fois (≈ 60-75 Mo, depuis le dépôt officiel Piper).</p>
+      <div id="voice-list" class="prov-list"></div>
+    </div>
     <div id="set-admin" hidden>
       <h3>Fournisseur IA <span class="muted" id="set-provider"></span></h3>
       <input id="set-key" type="password" placeholder="Clé API (laisser vide pour ne pas changer)" autocomplete="off">
@@ -180,6 +185,23 @@
         <h3>IA de secours <span class="muted" id="set-prov-order"></span></h3>
         <p class="muted">Si Groq atteint sa limite, JARVIS bascule tout seul sur ces fournisseurs (puis sur Cloudflare Workers AI, sans clé). Colle une clé gratuite pour en activer un.</p>
         <div id="prov-list" class="prov-list"></div>
+      </div>
+      <div id="set-info" hidden>
+        <h3>Infos du quotidien</h3>
+        <label>Ville (météo)
+          <input id="info-city" type="text" placeholder="ex. Lyon" autocomplete="off">
+        </label>
+        <label>Calendrier (lien ICS : Google Agenda → « adresse secrète au format iCal », ENT, Pronote…)
+          <input id="info-ics" type="password" placeholder="https://… (laisser vide pour ne pas changer)" autocomplete="off">
+        </label>
+        <p class="muted" id="info-ics-hint"></p>
+        <label>Emploi du temps de la semaine (un créneau par ligne : <code>lundi 08:00-09:30 Maths @ salle 12</code>)
+          <textarea id="info-tt" rows="5" spellcheck="false" placeholder="lundi 08:00-09:30 Maths @ B204&#10;mardi 14:00-16:00 Anglais"></textarea>
+        </label>
+        <div class="row" style="margin-top:0">
+          <button class="btn" id="btn-info-save" type="button">Enregistrer</button>
+          <a class="btn" href="/dash" target="_blank" rel="noopener">Ouvrir le 2e écran</a>
+        </div>
       </div>
       <h3>Invitations</h3>
       <div class="row" style="margin-top:0"><button class="btn" id="btn-invite">Créer un code d'invitation</button></div>
@@ -194,6 +216,28 @@
       </div>
       <label class="check"><input type="checkbox" id="set-autoupd"> Télécharger automatiquement les mises à jour</label>
       <label class="check"><input type="checkbox" id="set-autorestart"> Redémarrer seul pour les installer</label>
+    </div>
+    <div id="set-accounts" hidden>
+      <h3>Boîte mail <span class="muted" id="acc-mail-state"></span></h3>
+      <p class="muted">Identifiants chiffrés par Windows sur ce PC : ils ne passent jamais par le site. Utilise un <b>mot de passe d'application</b> (Gmail : activer la validation en 2 étapes puis créer un mot de passe d'application ; iCloud, Yahoo : idem).</p>
+      <div id="acc-mail-form">
+        <label>Fournisseur
+          <select id="acc-preset"><option value="gmail">Gmail</option><option value="outlook">Outlook / Hotmail</option><option value="icloud">iCloud</option><option value="yahoo">Yahoo</option><option value="custom">Autre (IMAP / SMTP)</option></select>
+        </label>
+        <input id="acc-addr" type="email" placeholder="Adresse e-mail" autocomplete="off">
+        <input id="acc-pass" type="password" placeholder="Mot de passe d'application" autocomplete="new-password">
+        <div id="acc-custom" hidden>
+          <input id="acc-imap" type="text" placeholder="Serveur IMAP (ex. imap.exemple.fr:993)" autocomplete="off">
+          <input id="acc-smtp" type="text" placeholder="Serveur SMTP (ex. smtp.exemple.fr:465 ou :587)" autocomplete="off">
+        </div>
+        <div class="row" style="margin-top:6px"><button class="btn" id="btn-mail-save" type="button">Tester et enregistrer</button><button class="btn danger" id="btn-mail-remove" type="button" hidden>Retirer</button></div>
+      </div>
+      <h3>Messages <span class="muted" id="acc-msg-state"></span></h3>
+      <p class="muted">Pour que JARVIS envoie des messages (toujours avec ta validation sur le PC). Telegram : crée un bot avec @BotFather ; Discord : « Intégrations → Webhooks » d'un salon.</p>
+      <input id="acc-tg-token" type="password" placeholder="Jeton du bot Telegram" autocomplete="off">
+      <input id="acc-tg-chat" type="text" placeholder="Identifiant de conversation Telegram (nombre)" autocomplete="off">
+      <input id="acc-dc" type="password" placeholder="Adresse du webhook Discord" autocomplete="off">
+      <div class="row" style="margin-top:6px"><button class="btn" id="btn-msg-save" type="button">Tester et enregistrer</button></div>
     </div>
     <div id="set-desktop" hidden>
       <h3>Ce PC</h3>

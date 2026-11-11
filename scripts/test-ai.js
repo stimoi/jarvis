@@ -123,6 +123,17 @@ await test('Workers AI : quota quotidien -> pause jusqu’à minuit UTC, message
   assert.deepEqual(calls, []);
 });
 
+await test('clés de secours chiffrées (AES-GCM) : aller-retour, illisible avec un autre secret, falsification détectée', async () => {
+  const { _seal, _unseal } = await import('../cloud/src/providers.js');
+  const env = { JWT_SECRET: 'secret-A' };
+  const blob = await _seal(env, 'sk-ma-cle-très-secrète');
+  assert.ok(!blob.includes('secrete') && !blob.includes('sk-'));
+  assert.equal(await _unseal(env, blob), 'sk-ma-cle-très-secrète');
+  assert.equal(await _unseal({ JWT_SECRET: 'secret-B' }, blob), '');
+  assert.equal(await _unseal(env, `${blob.slice(0, -3)}AAA`), '');
+  assert.notEqual(await _seal(env, 'x'), await _seal(env, 'x'), 'IV aléatoire');
+});
+
 server.close();
 console.log(failures ? `\n${failures} échec(s)\n` : '\nTout est OK\n');
 process.exit(failures ? 1 : 0);

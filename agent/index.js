@@ -8,6 +8,16 @@ import { TOOL_IMPL } from './tools.js';
 import { sampleStats } from './stats.js';
 import { ttsAvailable } from './tts.js';
 import { createRemote } from './remote.js';
+import { mailSetup, mailStatus, mailRemove } from './mail.js';
+import { messagingSetup, messagingStatus } from './messaging.js';
+
+async function accountOp(op, a) {
+  if (op === 'status') return { mail: mailStatus(), messaging: messagingStatus() };
+  if (op === 'mail-setup') return { mail: await mailSetup(a) };
+  if (op === 'mail-remove') return { mail: mailRemove() };
+  if (op === 'msg-setup') return { messaging: await messagingSetup(a) };
+  throw new Error('Opération inconnue.');
+}
 
 const log = (...a) => console.log(`[agent ${new Date().toLocaleTimeString('fr-FR')}]`, ...a);
 
@@ -180,7 +190,13 @@ function start() {
 
 // État des mises à jour (venant de l'appli Electron) -> transmis au site pour affichage (PC connecté : version, téléchargement…)
 let lastUpd = null;
-process.on('message', (m) => {
+process.on('message', async (m) => {
+  if (m?.t === 'acct') {
+    // Réglages de la boîte mail / des messageries, demandés par l'appli de bureau : les mots de passe restent sur ce PC (coffre Windows).
+    const reply = (r) => process.send?.({ t: 'acct-reply', id: m.id, ...r });
+    try { reply({ ok: true, result: await accountOp(m.op, m.args || {}) }); } catch (e) { reply({ ok: false, error: e.message }); }
+    return;
+  }
   if (m?.t !== 'upd') return;
   lastUpd = m.state;
   send({ type: 'app_status', state: m.state });

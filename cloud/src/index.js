@@ -4,6 +4,7 @@ import { UserHub } from './hub.js';
 import { resolveAi, FALLBACKS, fallbackConfig } from '../../shared/aiconf.js';
 import { transcribe, checkKey, AiError } from '../../shared/ai.js';
 import { hashPassword, verifyPassword, signToken, verifyToken, sha256hex, randomToken, json } from './util.js';
+import { loadInfo, publicInfo, saveInfo, dashData } from './info.js';
 import { getEnv, providersStatus, saveKey, deleteKey, transcribeWorkersAi } from './providers.js';
 
 export { UserHub };
@@ -148,6 +149,36 @@ async function api(req, env, url) {
     }
     return json({ ok: true });
   }
+
+  if (path === '/api/mail') return json(await hub(env, user.id).mailSummary().catch((e) => ({ error: e.message })));
+
+  // ---------- Voix de JARVIS (Piper, sur le PC) ----------
+  if (path === '/api/voices') {
+    try {
+      if (m === 'POST') {
+        const b = await readBody(req);
+        if (!['select', 'install'].includes(b.action) || typeof b.id !== 'string') return json({ error: 'Requête invalide.' }, 400);
+        return json({ message: await hub(env, user.id).voices(b.action, b.id) });
+      }
+      return json(JSON.parse(await hub(env, user.id).voices('list')));
+    } catch (e) {
+      return json({ error: e.message }, 502);
+    }
+  }
+
+  // ---------- Infos du quotidien (météo, emploi du temps) & 2e écran ----------
+  if (path === '/api/info') {
+    if (m === 'PUT') {
+      if (!user.is_admin) return json({ error: 'Réservé à l’administrateur.' }, 403);
+      try {
+        return json(await saveInfo(env, await readBody(req)));
+      } catch (e) {
+        return json({ error: e.message }, e.status || 400);
+      }
+    }
+    return json(publicInfo(await loadInfo(env)));
+  }
+  if (path === '/api/dash') return json(await dashData(env));
 
   // ---------- Fournisseurs IA de secours (admin) ----------
   if (path === '/api/providers' && m === 'GET') {

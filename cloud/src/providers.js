@@ -30,6 +30,8 @@ async function unseal(env, blob) {
   }
 }
 
+export const _seal = seal; export const _unseal = unseal; // pour les tests
+
 // ---------------------------------------------------------------- clés stockées
 export async function storedKeys(env) {
   const { results } = await env.DB.prepare("SELECT k, v FROM settings WHERE k LIKE 'pk:%'").all();

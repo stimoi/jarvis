@@ -32,7 +32,9 @@ a { color: var(--cyan); text-decoration: none; }
 .mono { font-family: var(--mono); }
 .caps { text-transform: uppercase; letter-spacing: .18em; }
 
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+textarea { width: 100%; background: rgba(2, 12, 26, .8); border: 1px solid var(--line); padding: 9px 12px; outline: none; border-radius: 2px; font-family: var(--mono); font-size: .85rem; resize: vertical; }
+textarea:focus { border-color: var(--cyan); }
 input, select {
   width: 100%; background: rgba(2, 12, 26, .8); border: 1px solid var(--line); padding: 11px 13px; outline: none; border-radius: 2px;
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));

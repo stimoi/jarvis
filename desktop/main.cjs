@@ -79,6 +79,19 @@ async function installNow() {
   return false;
 }
 
+// Réglages des comptes (mail, messageries) : l'appli les transmet à l'agent local, qui les chiffre avec Windows. Rien ne passe par le site.
+const acctWaiters = new Map();
+function accountCall(op, args) {
+  const agent = children.agent;
+  if (!agent?.connected) return Promise.reject(new Error("L'agent du PC n'est pas démarré."));
+  const id = Math.random().toString(36).slice(2);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { acctWaiters.delete(id); reject(new Error('Délai dépassé.')); }, 45000);
+    acctWaiters.set(id, { resolve: (r) => { clearTimeout(timer); resolve(r); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+    agent.send({ t: 'acct', id, op, args });
+  });
+}
+
 // ---------------------------------------------------------------- processus enfants
 // L'agent n'utilise que des API Node basiques : il tourne avec le Node intégré d'Electron (aucune installation requise).
 // Le serveur local (mode développement) a besoin de node:sqlite (Node >= 22.5) : Node du système.
@@ -96,6 +109,7 @@ function startChild(name, script) {
   children[name] = child;
   if (isAgent) {
     child.on('message', (m) => {
+      if (m?.t === 'acct-reply') { const w = acctWaiters.get(m.id); if (w) { acctWaiters.delete(m.id); m.ok ? w.resolve(m.result) : w.reject(new Error(m.error || 'Échec')); } return; }
       if (m?.t !== 'cmd') return;
       if (!updater) return child.connected && child.send({ t: 'upd', state: { phase: 'unsupported', current: APP_VERSION } });
       if (m.cmd === 'update') installNow().catch((e) => ulog(`installNow : ${e.message}`));
@@ -154,6 +168,26 @@ function showWindow() {
   win.focus();
 }
 
+// 2e écran JARVIS (/dash) : plein écran sur le moniteur secondaire s'il y en a un, sinon fenêtre normale.
+let dashWin = null;
+function openDash() {
+  if (dashWin && !dashWin.isDestroyed()) { dashWin.show(); dashWin.focus(); return; }
+  const { screen } = require('electron');
+  const primary = screen.getPrimaryDisplay();
+  const other = screen.getAllDisplays().find((d) => d.id !== primary.id);
+  const b = (other || primary).bounds;
+  dashWin = new BrowserWindow({
+    ...(other ? { x: b.x, y: b.y, width: b.width, height: b.height, fullscreen: true } : { width: 1280, height: 760 }),
+    backgroundColor: '#010812', title: 'JARVIS — 2e écran', icon: ICON, autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+  });
+  dashWin.loadURL(`${SERVER_URL}/dash/`);
+  dashWin.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  dashWin.webContents.on('will-navigate', (e, url) => { if (new URL(url).origin !== ORIGIN) { e.preventDefault(); shell.openExternal(url); } });
+  dashWin.webContents.on('before-input-event', (_e, input) => { if (input.type === 'keyDown' && input.key === 'Escape' && dashWin.isFullScreen()) dashWin.setFullScreen(false); });
+  dashWin.on('closed', () => { dashWin = null; });
+}
+
 const isPaused = () => fs.existsSync(PAUSE_FILE);
 
 function refreshTray() {
@@ -161,6 +195,7 @@ function refreshTray() {
   const s = updater?.state;
   const items = [
     { label: 'Ouvrir JARVIS', click: showWindow },
+    { label: 'Ouvrir le 2e écran', click: openDash },
     { type: 'separator' },
     {
       label: 'Suspendre le contrôle du PC', type: 'checkbox', checked: isPaused(),
@@ -216,6 +251,12 @@ ipcMain.handle('jarvis:set-autonomy', (_e, v) => {
   cfg.autonomy = v;
   fs.writeFileSync(AGENT_CONFIG, JSON.stringify(cfg, null, 2), { mode: 0o600 });
   return true;
+});
+// Seules les pages du site JARVIS (jamais une page tierce) peuvent régler les comptes.
+ipcMain.handle('jarvis:acct', (e, op, args) => {
+  if (!String(e.senderFrame?.url || '').startsWith(`${ORIGIN}/`)) throw new Error('Origine non autorisée.');
+  if (!['status', 'mail-setup', 'mail-remove', 'msg-setup'].includes(op)) throw new Error('Opération inconnue.');
+  return accountCall(op, args && typeof args === 'object' ? args : {});
 });
 ipcMain.handle('jarvis:app-info', () => ({ version: APP_VERSION, source: BOOT?.source || 'dev', bundled: BOOT?.bundledVersion || APP_VERSION, updates: !!updater }));
 ipcMain.handle('jarvis:update-state', () => (updater ? publicState(updater.state) : { phase: 'unsupported', current: APP_VERSION }));
