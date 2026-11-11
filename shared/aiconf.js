@@ -15,8 +15,8 @@ const PROVIDERS = {
   groq: {
     baseUrl: 'https://api.groq.com/openai/v1',
     chatModel: 'openai/gpt-oss-120b',
-    fallbackModels: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
-    visionModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    fallbackModels: ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+    visionModel: 'qwen/qwen3.8-27b',
     sttPath: '/audio/transcriptions',
     sttModel: 'whisper-large-v3-turbo',
     sttLanguage: 'fr',

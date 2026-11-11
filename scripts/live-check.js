@@ -58,6 +58,12 @@ await t('LLM : outil à risque choisi correctement (suppression)', async () => {
   return `${c.name} ${c.arguments.slice(0, 70)}`;
 });
 
+await t('LLM : vision (modèle ' + ai.visionModel + ') sur une vraie image', async () => {
+  const png = fs.readFileSync(path.join(process.cwd(), 'web', 'icons', 'icon-192.png')).toString('base64');
+  const m = await chat({ messages: [{ role: 'user', content: [{ type: 'text', text: "Décris cette image en quelques mots." }, { type: 'image_url', image_url: { url: `data:image/png;base64,${png}` } }] }] });
+  if (!m.content) throw new Error('réponse vide');
+  return m.content.slice(0, 70).replace(/\s+/g, ' ');
+});
 // Transcription : voix française Windows (SAPI) -> WAV 16 kHz mono -> Whisper
 await t('Whisper : « Jarvis, ouvre le bloc-notes » (voix Hortense)', async () => {
   const wav = path.join(os.tmpdir(), `jarvis-live-${Date.now()}.wav`);

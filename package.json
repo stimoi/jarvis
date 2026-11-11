@@ -16,6 +16,7 @@
                     "icons":  "node scripts/make-icons.js",
                     "test":  "node scripts/e2e.js",
                     "check":  "node scripts/live-check.js",
+                    "test:ai":  "node scripts/test-ai.js",
                     "desktop:local":  "electron desktop/main.cjs --local",
                     "package":  "node scripts/package.js",
                     "cf:dev":  "wrangler dev",

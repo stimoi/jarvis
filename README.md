@@ -80,7 +80,7 @@ npm run publish:app                   # construit l'appli, la découpe en morcea
 
 > **Téléchargement de l'appli** : sans R2 (payant). Cloudflare limite les fichiers statiques à 25 Mo : l'archive est donc servie en morceaux de 20 Mo dans `web/dl/` ; le navigateur les télécharge, vérifie leur SHA-256 et réassemble le zip (`web/js/landing.js`).
 
-Quotas gratuits Groq : repli automatique `gpt-oss-120b` → `llama-3.3-70b` → `llama-3.1-8b`, limite de 200 messages/h par compte, et l'appli limite elle-même les envois à Whisper en veille (≈ 14/min).
+Quotas gratuits Groq : repli automatique `gpt-oss-120b` → `gpt-oss-20b` → `qwen3.8-27b` (la liste réelle des modèles du compte est relue ; un modèle disparu est ignoré, un quota atteint met le modèle en pause jusqu'à l'heure de reprise annoncée, et l'erreur affichée dit combien de temps attendre), limite de 200 messages/h par compte, et l'appli limite elle-même les envois à Whisper en veille (≈ 14/min).
 
 ## Développement local
 
@@ -92,7 +92,7 @@ npm run cf:dev           # Worker en local (wrangler dev)
 npm test                 # 18 tests e2e contre le serveur Node
 npm run test:worker      # les mêmes contre le Worker local (Durable Object + D1)
 npm run test:remote      # écran/souris/clavier à distance (vraies images, vrai clic ; -- --worker pour le Worker local)
-npm run check            # test réel de ta clé : LLM + appel d'outil + Whisper + « jarvis »
+npm run test:ai          # chaîne de modèles (quota, modèle disparu…) contre un faux fournisseur`nnpm run check            # test réel de ta clé : LLM + appel d'outil + Whisper + « jarvis »
 ```
 
 Si ton routeur met en cache un DNS erroné pour `jarvis.avenox.fr` (après un nouveau déploiement), l'agent accepte `JARVIS_DNS=1.1.1.1`.
