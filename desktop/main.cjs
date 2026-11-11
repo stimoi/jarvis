@@ -42,7 +42,7 @@ const children = {};
 const LOG_FILE = BOOT?.logFile || path.join(app.getPath('userData'), 'updater.log');
 const ulog = (m) => { try { fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${m}\n`); } catch {} };
 const PREFS_FILE = path.join(app.getPath('userData'), 'prefs.json');
-const prefs = { autoUpdate: true, autoRestart: false, ...(readJson(PREFS_FILE) || {}) };
+const prefs = { autoUpdate: true, autoRestart: true, ...(readJson(PREFS_FILE) || {}) }; // mise à jour 100 % automatique par défaut (désactivable dans les Réglages)
 const savePrefs = () => { try { fs.mkdirSync(path.dirname(PREFS_FILE), { recursive: true }); fs.writeFileSync(PREFS_FILE, JSON.stringify(prefs)); } catch {} };
 
 const UPDATE_URLS = process.env.JARVIS_UPDATE_URL
