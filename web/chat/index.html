@@ -176,6 +176,11 @@
       <h3>Fournisseur IA <span class="muted" id="set-provider"></span></h3>
       <input id="set-key" type="password" placeholder="Clé API (laisser vide pour ne pas changer)" autocomplete="off">
       <p class="muted" id="set-keyhint"></p>
+      <div id="set-providers" hidden>
+        <h3>IA de secours <span class="muted" id="set-prov-order"></span></h3>
+        <p class="muted">Si Groq atteint sa limite, JARVIS bascule tout seul sur ces fournisseurs (puis sur Cloudflare Workers AI, sans clé). Colle une clé gratuite pour en activer un.</p>
+        <div id="prov-list" class="prov-list"></div>
+      </div>
       <h3>Invitations</h3>
       <div class="row" style="margin-top:0"><button class="btn" id="btn-invite">Créer un code d'invitation</button></div>
       <div id="invite-list" class="invite-list"></div>

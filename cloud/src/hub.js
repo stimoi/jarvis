@@ -3,7 +3,7 @@
 // Hibernation : le DO dort (sans facturation de durée) tant que personne ne parle.
 import { DurableObject } from 'cloudflare:workers';
 import { chat } from '../../shared/ai.js';
-import { resolveAi } from '../../shared/aiconf.js';
+import { loadProviders } from './providers.js';
 import { AGENT_TOOLS, SERVER_TOOLS, toOpenAITools } from '../../shared/tools.js';
 import { systemPrompt } from '../../shared/prompt.js';
 import { rcOpts, cleanAppState } from '../../shared/rc.js';
@@ -17,10 +17,6 @@ const send = (ws, msg) => {
   try {
     if (ws.readyState === 1) ws.send(JSON.stringify(msg));
   } catch {}
-};
-const getEnv = (env) => (...keys) => {
-  for (const k of keys) if (typeof env[k] === 'string' && env[k].trim()) return env[k].trim();
-  return '';
 };
 
 export class UserHub extends DurableObject {
@@ -321,8 +317,7 @@ export class UserHub extends DurableObject {
       { role: 'user', content: text },
     ];
     const tools = toOpenAITools([...(agent ? AGENT_TOOLS : []), ...SERVER_TOOLS]);
-    const row = await this.env.DB.prepare("SELECT v FROM settings WHERE k = 'chatModel'").first();
-    const ai = resolveAi(getEnv(this.env), row?.v ? { chatModel: row.v } : {});
+    const ai = await loadProviders(this.env);
 
     let final = '';
     try {

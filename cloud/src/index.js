@@ -1,19 +1,15 @@
 // Worker JARVIS : API (comptes, invitations, voix), liaison WebSocket vers le Durable Object de l'utilisateur,
 // interface statique servie par Workers Assets (dossier web/).
 import { UserHub } from './hub.js';
-import { resolveAi } from '../../shared/aiconf.js';
-import { transcribe, AiError } from '../../shared/ai.js';
+import { resolveAi, FALLBACKS, fallbackConfig } from '../../shared/aiconf.js';
+import { transcribe, checkKey, AiError } from '../../shared/ai.js';
 import { hashPassword, verifyPassword, signToken, verifyToken, sha256hex, randomToken, json } from './util.js';
+import { getEnv, providersStatus, saveKey, deleteKey, transcribeWorkersAi } from './providers.js';
 
 export { UserHub };
 
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
 const HOUR = 3600 * 1000;
-
-const getEnv = (env) => (...keys) => {
-  for (const k of keys) if (typeof env[k] === 'string' && env[k].trim()) return env[k].trim();
-  return '';
-};
 
 async function aiConf(env) {
   const row = await env.DB.prepare("SELECT v FROM settings WHERE k = 'chatModel'").first();
@@ -153,6 +149,33 @@ async function api(req, env, url) {
     return json({ ok: true });
   }
 
+  // ---------- Fournisseurs IA de secours (admin) ----------
+  if (path === '/api/providers' && m === 'GET') {
+    if (!user.is_admin) return json({ error: 'Réservé à l’administrateur.' }, 403);
+    return json(await providersStatus(env));
+  }
+  const pm = path.match(/^\/api\/providers\/(\w+)$/);
+  if (pm) {
+    if (!user.is_admin) return json({ error: 'Réservé à l’administrateur.' }, 403);
+    if (!FALLBACKS[pm[1]]) return json({ error: 'Fournisseur inconnu.' }, 404);
+    if (m === 'DELETE') {
+      await deleteKey(env, pm[1]);
+      return json({ ok: true });
+    }
+    if (m === 'PUT') {
+      const key = String((await readBody(req)).key || '').trim();
+      if (key.length < 12 || /\s/.test(key)) return json({ error: 'Clé invalide.' }, 400);
+      try {
+        const n = await checkKey(fallbackConfig(pm[1], key)); // refusée => erreur claire, rien n'est enregistré
+        await saveKey(env, pm[1], key);
+        return json({ ok: true, models: n });
+      } catch (e) {
+        if (e instanceof AiError) return json({ error: e.message }, e.status === 502 ? 502 : 400);
+        throw e;
+      }
+    }
+  }
+
   // ---------- Invitations (admin) ----------
   if (path === '/api/invites') {
     if (!user.is_admin) return json({ error: 'Réservé à l’administrateur.' }, 403);
@@ -176,8 +199,20 @@ async function api(req, env, url) {
     const buf = await req.arrayBuffer();
     if (buf.byteLength < 200) return json({ text: '' });
     if (buf.byteLength > 12 * 1024 * 1024) return json({ error: 'Audio trop volumineux' }, 413);
-    const text = await transcribe(await aiConf(env), buf, (req.headers.get('Content-Type') || 'audio/wav').split(';')[0]);
-    return json({ text });
+    const mime = (req.headers.get('Content-Type') || 'audio/wav').split(';')[0];
+    try {
+      return json({ text: await transcribe(await aiConf(env), buf, mime) });
+    } catch (e) {
+      // Quota / panne du fournisseur principal : Whisper de Cloudflare Workers AI prend le relais.
+      if (!(e instanceof AiError)) throw e;
+      try {
+        const text = await transcribeWorkersAi(env, buf);
+        if (text != null) return json({ text, via: 'cloudflare' });
+      } catch (e2) {
+        console.error('stt secours', e2);
+      }
+      throw e;
+    }
   }
   if (path === '/api/tts' && m === 'POST') {
     const { text } = await readBody(req);

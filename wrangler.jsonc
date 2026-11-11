@@ -19,6 +19,8 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "jarvis", "database_id": "e46ec31a-28b7-4e95-bf20-b1d5f5dae3a6" }
   ],
+  // IA de secours sans clé (quota gratuit quotidien) : utilisée quand Groq & co sont en quota
+  "ai": { "binding": "AI" },
   // Domaine personnalisé : le DNS jarvis.avenox.fr est créé automatiquement par le déploiement (zone avenox.fr du compte).
   "routes": [{ "pattern": "jarvis.avenox.fr", "custom_domain": true }],
   "observability": { "enabled": true }

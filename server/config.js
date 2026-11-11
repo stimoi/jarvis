@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { resolveAi } from '../shared/aiconf.js';
+import { resolveAi, resolveProviders } from '../shared/aiconf.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -50,5 +50,9 @@ export const config = {
   get ai() {
     const s = readSettings();
     return { ...resolveAi(env, s), ttsVoice: s.ttsVoice || env('AI_TTS_VOICE') || '', serverTts: false };
+  },
+  /** Principal + fournisseurs de secours (MISTRAL_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, CEREBRAS_API_KEY). */
+  get providers() {
+    return resolveProviders(env, {}, readSettings());
   },
 };

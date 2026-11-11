@@ -103,4 +103,8 @@ input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 16px #3de
 .countdown { height: 3px; background: var(--line2); overflow: hidden; margin-top: 10px; }
 .countdown div { height: 100%; width: 100%; background: var(--warn); transform-origin: left; }
 .invite-list { font: .82rem var(--mono); color: var(--muted); max-height: 120px; overflow: auto; }
+.prov { border: 1px solid var(--line, rgba(0,200,255,.25)); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: .85rem; }
+.prov-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.prov-head a { font-size: .78rem; }
+.prov .muted { font-size: .78rem; margin: 2px 0; }
 @media (prefers-reduced-motion: reduce) { .reactor *, .reactor { animation: none !important; } }

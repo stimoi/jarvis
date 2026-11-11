@@ -58,7 +58,7 @@ await test('/models en échec : on essaie quand même la chaîne ; un 404 écart
 await test('tout en quota : message clair avec l’heure de reprise (Retry-After du texte)', async () => {
   live = ['org/m-main', 'm-small'];
   behaviors = { 'org/m-main': rate('Please try again in 7m12.5s.'), 'm-small': rate('Please try again in 3m1s.') };
-  await assert.rejects(ask(), (e) => e instanceof AiError && e.status === 429 && /Quota gratuit groq atteint/.test(e.message) && /3 min|4 min/.test(e.message), 'message de quota attendu');
+  await assert.rejects(ask(), (e) => e instanceof AiError && e.status === 429 && /Quota gratuit atteint sur tous les fournisseurs IA \(groq\)/.test(e.message) && /3 min|4 min/.test(e.message), 'message de quota attendu');
   calls = [];
   await assert.rejects(ask()); // 2e demande : aucun appel inutile pendant la pause
   assert.deepEqual(calls, []);
@@ -84,6 +84,43 @@ await test('image : seul le modèle vision est utilisé', async () => {
 await test('clé refusée (401) : erreur immédiate', async () => {
   live = ['org/m-main']; behaviors = { 'org/m-main': (res) => { res.statusCode = 401; res.end(JSON.stringify({ error: { message: 'bad key' } })); } };
   await assert.rejects(ask(), (e) => e.status === 401 && /refusée/.test(e.message));
+});
+
+const ai2 = { provider: 'mistral', key: 'k2', baseUrl: `http://127.0.0.1:${PORT}/b`, chatModel: 'b-main', fallbackModels: [], visionModel: '' };
+const run = { provider: 'cf', chatModel: '@cf/x/big', fallbackModels: ['@cf/x/small'], visionModel: '', run: async (model, body) => { calls.push(model); return runBehavior(model, body); } };
+let runBehavior = () => ({ choices: [{ message: { role: 'assistant', content: 'cf' } }] });
+
+await test('fournisseur principal en quota : le secours répond, puis le principal reste en pause', async () => {
+  live = ['org/m-main', 'm-small', 'b-main']; behaviors = { 'org/m-main': rate('x', 600), 'm-small': rate('x', 600), 'b-main': ok('secours') };
+  const r = await chat([ai, ai2], { messages: [{ role: 'user', content: 'a' }] });
+  assert.equal(r.content, 'secours');
+  assert.equal(r.via, 'mistral/b-main');
+  calls = [];
+  assert.equal((await chat([ai, ai2], { messages: [{ role: 'user', content: 'a' }] })).content, 'secours');
+  assert.deepEqual(calls, ['b-main'], 'principal non rappelé pendant sa pause');
+});
+
+await test('clé du principal refusée : le secours prend le relais', async () => {
+  live = ['org/m-main', 'b-main']; behaviors = { 'org/m-main': (res) => { res.statusCode = 401; res.end('{}'); }, 'b-main': ok('secours') };
+  assert.equal((await chat([ai, ai2], { messages: [{ role: 'user', content: 'a' }] })).content, 'secours');
+});
+
+await test('Workers AI (run) en dernier recours + arguments d’outil {"": {}} normalisés', async () => {
+  live = ['org/m-main', 'm-small']; behaviors = { 'org/m-main': rate('x', 600), 'm-small': rate('x', 600) };
+  runBehavior = () => ({ choices: [{ message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'get_system_info', arguments: '{"": {}}' } }] } }] });
+  const r = await chat([ai, run], { messages: [{ role: 'user', content: 'a' }], tools: [{ type: 'function', function: { name: 'get_system_info', parameters: { type: 'object', properties: {} } } }] });
+  assert.equal(r.tool_calls[0].function.name, 'get_system_info');
+  assert.equal(r.tool_calls[0].function.arguments, '{}');
+  assert.equal(r.via, 'cf/big');
+});
+
+await test('Workers AI : quota quotidien -> pause jusqu’à minuit UTC, message clair', async () => {
+  live = ['org/m-main', 'm-small']; behaviors = { 'org/m-main': rate('x', 600), 'm-small': rate('x', 600) };
+  runBehavior = () => { throw new Error('daily free allocation of 10,000 neurons exceeded'); };
+  await assert.rejects(chat([ai, run], { messages: [{ role: 'user', content: 'a' }] }), (e) => e.status === 429 && /tous les fournisseurs IA \(groq, cf\)/.test(e.message));
+  calls = [];
+  await assert.rejects(chat([ai, run], { messages: [{ role: 'user', content: 'a' }] }));
+  assert.deepEqual(calls, []);
 });
 
 server.close();

@@ -611,11 +611,51 @@ async function openSettings() {
     $('#set-key').hidden = !!s.cloud;
     $('#set-provider').textContent = `— ${s.provider} / ${s.chatModel}`;
     $('#set-keyhint').textContent = s.cloud ? `Clé enregistrée côté Cloudflare (${s.keyHint}).` : s.hasKey ? `Clé enregistrée (${s.keyHint}).` : 'Aucune clé enregistrée.';
-    if (s.isAdmin) loadInvites();
+    if (s.isAdmin) { loadInvites(); if (s.cloud) loadProviders(); }
   } catch {}
   await loadDevices();
   if (!d.open) d.showModal();
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+const PROV_LABEL = { principal: 'Groq', cloudflare: 'Cloudflare', mistral: 'Mistral', gemini: 'Gemini', openrouter: 'OpenRouter', cerebras: 'Cerebras' };
+async function loadProviders() {
+  try {
+    const st = await json('/api/providers');
+    $('#set-providers').hidden = false;
+    $('#set-prov-order').textContent = `— ordre : ${st.order.map((id) => PROV_LABEL[id] || id).join(' → ')}`;
+    const box = $('#prov-list'); box.innerHTML = '';
+    for (const p of st.fallbacks) {
+      const row = document.createElement('div'); row.className = 'prov';
+      const head = document.createElement('div'); head.className = 'prov-head';
+      const name = document.createElement('strong'); name.textContent = `${p.configured ? '🟢' : '⚪'} ${p.name}`;
+      const link = document.createElement('a'); link.href = p.signup; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'obtenir une clé';
+      head.append(name, link);
+      const note = document.createElement('div'); note.className = 'muted'; note.textContent = p.note;
+      row.append(head, note);
+      if (p.configured) {
+        const info = document.createElement('div'); info.className = 'muted';
+        info.textContent = p.source === 'secret' ? `Clé Cloudflare (${p.hint}).` : `Clé enregistrée (${p.hint}).`;
+        row.append(info);
+        if (p.source === 'app') {
+          const del = document.createElement('button'); del.className = 'btn small danger'; del.type = 'button'; del.textContent = 'Retirer';
+          del.onclick = async () => { await api(`/api/providers/${p.id}`, { method: 'DELETE' }); loadProviders(); };
+          row.append(del);
+        }
+      } else {
+        const wrap = document.createElement('div'); wrap.className = 'row'; wrap.style.marginTop = '4px';
+        const inp = document.createElement('input'); inp.type = 'password'; inp.placeholder = 'Clé API'; inp.autocomplete = 'off';
+        const ok = document.createElement('button'); ok.className = 'btn small'; ok.type = 'button'; ok.textContent = 'Tester et enregistrer';
+        ok.onclick = async () => {
+          const key = inp.value.trim(); if (!key) return;
+          ok.disabled = true; ok.textContent = 'Test…';
+          try { const r = await json(`/api/providers/${p.id}`, { method: 'PUT', body: { key } }); addMsg('sys', `${p.name} : clé valide (${r.models} modèles). Secours activé.`); loadProviders(); }
+          catch (e) { addMsg('error', e.message); ok.disabled = false; ok.textContent = 'Tester et enregistrer'; }
+        };
+        wrap.append(inp, ok); row.append(wrap);
+      }
+      box.append(row);
+    }
+  } catch { $('#set-providers').hidden = true; }
 }
 async function loadInvites() {
   try {
