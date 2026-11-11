@@ -1,7 +1,8 @@
-// Publie l'appli de bureau : Release GitHub (lien de téléchargement direct) + redéploiement du site.
-// Le site expose https://jarvis.avenox.fr/download qui redirige vers le dernier zip de la Release GitHub.
-// Prérequis : `gh auth login` fait et dépôt GitHub créé (origin).
-// Usage : npm run publish:app            (--skip-build pour réutiliser downloads/JARVIS-windows-x64.zip)
+// Publie l'appli de bureau : Release GitHub (zip complet + mise à jour signée) + redéploiement du site.
+//  • https://jarvis.avenox.fr/download            -> dernier zip complet (première installation)
+//  • https://jarvis.avenox.fr/update.json         -> manifeste SIGNÉ lu par les applis installées (mise à jour à distance)
+// Prérequis : `gh auth login` fait, dépôt GitHub créé (origin), clé de signature data/update-key.pem.
+// Usage : npm run publish:app            (--skip-build pour réutiliser le dernier `npm run package`)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -26,20 +27,27 @@ if (!repo) throw new Error('Dépôt GitHub introuvable : fais « gh auth login �
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 const tag = `v${version}`;
 
+console.log('› archive de mise à jour signée…');
+if (node(['scripts/make-update.js', '--url-base', `https://github.com/${repo}/releases/download/${tag}`]).status !== 0) process.exit(1);
+const UPDATE_ZIP = path.join(root, 'downloads', `JARVIS-update-${version}.zip`);
+const MANIFEST = path.join(root, 'downloads', 'update.json');
+
 console.log(`› Release GitHub ${repo} ${tag}…`);
+const assets = [ZIP, UPDATE_ZIP, MANIFEST];
 const exists = gh(['release', 'view', tag]).status === 0;
-const notes = `JARVIS ${tag} pour Windows 10/11 64 bits. Décompressez l'archive puis lancez JARVIS.exe (voix grave Piper incluse).`;
+const notes = `JARVIS ${tag} pour Windows 10/11 64 bits. Première installation : décompressez ${NAME} puis lancez JARVIS.exe. Les applis déjà installées (v0.4.0+) se mettent à jour toutes seules.`;
 const r = exists
-  ? gh(['release', 'upload', tag, ZIP, '--clobber', '--repo', repo], false)
-  : gh(['release', 'create', tag, ZIP, '--repo', repo, '--title', `JARVIS ${tag}`, '--notes', notes, '--latest'], false);
+  ? gh(['release', 'upload', tag, ...assets, '--clobber', '--repo', repo], false)
+  : gh(['release', 'create', tag, ...assets, '--repo', repo, '--title', `JARVIS ${tag}`, '--notes', notes, '--latest'], false);
 if (r.status !== 0) process.exit(1);
 
-// Lien permanent vers le dernier zip + page d'accueil
+// Site : lien direct de téléchargement + manifeste signé de mise à jour
 const url = `https://github.com/${repo}/releases/latest/download/${NAME}`;
 fs.writeFileSync(path.join(root, 'web', 'download.json'), JSON.stringify({ name: NAME, version, size: fs.statSync(ZIP).size, url, repo }, null, 2));
 fs.writeFileSync(path.join(root, 'web', '_redirects'), `/download ${url} 302\n`);
+fs.copyFileSync(MANIFEST, path.join(root, 'web', 'update.json'));
 console.log(`› lien direct : ${url}`);
 
 console.log('› déploiement du site…');
 if (node([wr, 'deploy']).status !== 0) process.exit(1);
-console.log(`\n✔ Téléchargement direct : https://jarvis.avenox.fr/download\n  (ou ${url})`);
+console.log(`\n✔ Téléchargement direct : https://jarvis.avenox.fr/download\n✔ Mise à jour à distance : https://jarvis.avenox.fr/update.json (v${version})`);

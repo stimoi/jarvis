@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { userFromToken, deviceFromToken } from './auth.js';
 import { devices } from './db.js';
-import { rcOpts } from '../shared/rc.js';
+import { rcOpts, cleanAppState } from '../shared/rc.js';
 
 const send = (ws, msg) => {
   if (ws.readyState === 1) ws.send(JSON.stringify(msg));
@@ -193,11 +193,15 @@ export class Hub {
           user: String(msg.info?.user || '').slice(0, 60),
           home: String(msg.info?.home || '').slice(0, 200),
           tts: !!msg.info?.tts,
+          appVersion: String(msg.info?.version || '').slice(0, 20),
+          canUpdate: !!msg.info?.canUpdate,
         };
         this.pushState(ctx.userId);
       }
     } else if (msg.type === 'stats') {
       this.toUser(ctx.userId, { type: 'stats', agentId: ctx.deviceId, stats: msg.stats });
+    } else if (msg.type === 'app_status') {
+      this.toUser(ctx.userId, { type: 'app_status', agentId: ctx.deviceId, state: cleanAppState(msg.state) });
     } else if (msg.type === 'rc_error') {
       for (const c of u.clients) if (c.rc === ctx.deviceId) send(c, { type: 'rc_error', message: String(msg.message || '').slice(0, 200) });
     } else if (msg.type === 'tool_result') {
@@ -241,6 +245,11 @@ export class Hub {
         const agent = this.u(ctx.userId).agents.get(a.agentId);
         if (agent) send(agent.ws, { type: 'approval_decision', callId: msg.id, approved: !!msg.approved });
         this.toUser(ctx.userId, { type: 'approval_resolved', id: msg.id, approved: !!msg.approved });
+        break;
+      }
+      case 'app_cmd': { // mise à jour de l'appli de bureau demandée depuis le site/téléphone
+        const a = this.u(ctx.userId).agents.get(msg.agentId);
+        if (a) send(a.ws, { type: 'app_cmd', cmd: msg.cmd === 'update' ? 'update' : 'check' });
         break;
       }
       case 'rc_start': {

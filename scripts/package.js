@@ -23,7 +23,7 @@ for (const d of ['agent', 'shared', 'desktop']) fs.cpSync(path.join(root, d), pa
 fs.mkdirSync(path.join(stage, 'web', 'icons'), { recursive: true });
 fs.cpSync(path.join(root, 'web', 'icons'), path.join(stage, 'web', 'icons'), { recursive: true });
 fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify({
-  name: 'jarvis', productName: 'JARVIS', version: pkg.version, description: pkg.description, main: 'desktop/main.cjs', type: 'module',
+  name: 'jarvis', productName: 'JARVIS', version: pkg.version, description: pkg.description, main: 'desktop/boot.cjs', type: 'module',
   dependencies: { ws: pkg.dependencies.ws },
 }, null, 2));
 console.log('› installation des dépendances de l\'appli…');

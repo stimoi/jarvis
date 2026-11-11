@@ -1,22 +1,25 @@
-// Appli de bureau JARVIS : fenêtre + icône de zone de notification (barre des tâches) + agent PC.
+// Appli de bureau JARVIS : fenêtre + icône de zone de notification (barre des tâches) + agent PC + mises à jour à distance.
 //  - mode « remote » (défaut, appli installée) : charge le site (jarvis.avenox.fr) et lance l'agent qui s'y connecte ;
 //  - mode « local » (développement : `npm run desktop:local`) : lance aussi le serveur Node sur ce PC.
 // La fenêtre se masque au lieu de se fermer : l'écoute « Jarvis » continue en arrière-plan.
+// Ce fichier est lancé par boot.cjs (qui choisit entre le code livré et un code plus récent téléchargé).
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session, shell, dialog } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
+const { createUpdater } = require('./updater.cjs');
 
-const ROOT = path.resolve(__dirname, '..');
+const BOOT = global.__jarvis || null; // fourni par boot.cjs (absent en développement)
+const ROOT = BOOT?.root || path.resolve(__dirname, '..');
 const LOCAL = process.env.JARVIS_MODE === 'local' || process.argv.includes('--local');
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const APP_VERSION = BOOT?.version || readJson(path.join(ROOT, 'package.json'))?.version || '0.0.0';
+const APP_CONFIG = readJson(path.join(__dirname, 'app-config.json')) || {};
 
-function readAppConfig() {
-  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'app-config.json'), 'utf8')); } catch { return {}; }
-}
 const PORT = Number(process.env.PORT || 8787);
-const SERVER_URL = (LOCAL ? `http://127.0.0.1:${PORT}` : process.env.JARVIS_SERVER || readAppConfig().serverUrl || 'https://jarvis.avenox.fr').replace(/\/+$/, '');
+const SERVER_URL = (LOCAL ? `http://127.0.0.1:${PORT}` : process.env.JARVIS_SERVER || APP_CONFIG.serverUrl || 'https://jarvis.avenox.fr').replace(/\/+$/, '');
 const APP_URL = `${SERVER_URL}/chat/`;
 const ORIGIN = new URL(SERVER_URL).origin;
 
@@ -35,17 +38,71 @@ let tray = null;
 let quitting = false;
 const children = {};
 
+// ---------------------------------------------------------------- mises à jour
+const LOG_FILE = BOOT?.logFile || path.join(app.getPath('userData'), 'updater.log');
+const ulog = (m) => { try { fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${m}\n`); } catch {} };
+const PREFS_FILE = path.join(app.getPath('userData'), 'prefs.json');
+const prefs = { autoUpdate: true, autoRestart: false, ...(readJson(PREFS_FILE) || {}) };
+const savePrefs = () => { try { fs.mkdirSync(path.dirname(PREFS_FILE), { recursive: true }); fs.writeFileSync(PREFS_FILE, JSON.stringify(prefs)); } catch {} };
+
+const UPDATE_URLS = process.env.JARVIS_UPDATE_URL
+  ? process.env.JARVIS_UPDATE_URL.split(',').map((s) => s.trim())
+  : [`${SERVER_URL}/update.json`, `https://github.com/${APP_CONFIG.updateRepo || 'stimoi/jarvis'}/releases/latest/download/update.json`];
+const UPDATES_ON = !!BOOT && !LOCAL && (app.isPackaged || !!process.env.JARVIS_UPDATE_URL);
+
+const publicState = (s) => ({ phase: s.phase, current: s.current, latest: s.latest, percent: s.percent, notes: s.notes, error: s.error });
+let lastPhase = '';
+function onUpdateState(st) {
+  const pub = publicState(st);
+  try { if (win && !win.isDestroyed()) win.webContents.send('jarvis:update-state', pub); } catch {}
+  try { if (children.agent?.connected) children.agent.send({ t: 'upd', state: pub }); } catch {}
+  refreshTray();
+  if (st.phase !== lastPhase) {
+    lastPhase = st.phase;
+    if (st.phase === 'ready') {
+      tray?.displayBalloon?.({ title: 'JARVIS', content: `La version ${st.latest} est prête : redémarrez pour l'installer (menu de l'icône).`, iconType: 'info' });
+      if (prefs.autoRestart || process.env.JARVIS_UPDATE_AUTOAPPLY) setTimeout(() => installNow(), 3000);
+    }
+    if (st.phase === 'major') tray?.displayBalloon?.({ title: 'JARVIS', content: `La version ${st.latest} demande une réinstallation (téléchargez-la sur le site).`, iconType: 'info' });
+  }
+}
+const updater = UPDATES_ON
+  ? createUpdater({ app, current: APP_VERSION, source: BOOT.source, shellLevel: BOOT.shellLevel, pubkey: BOOT.pubkey, codeDir: BOOT.codeDir, manifestUrls: UPDATE_URLS, log: ulog, onState: onUpdateState })
+  : null;
+
+/** Cherche, télécharge si besoin, puis redémarre pour installer. */
+async function installNow() {
+  if (!updater) return false;
+  if (updater.state.phase !== 'ready') await updater.check({ download: true });
+  if (updater.state.phase === 'available') await updater.downloadLatest();
+  if (updater.state.phase === 'ready') { quitting = true; return updater.apply(); }
+  return false;
+}
+
+// ---------------------------------------------------------------- processus enfants
 // L'agent n'utilise que des API Node basiques : il tourne avec le Node intégré d'Electron (aucune installation requise).
 // Le serveur local (mode développement) a besoin de node:sqlite (Node >= 22.5) : Node du système.
 function startChild(name, script) {
   const isAgent = name === 'agent';
-  const env = { ...process.env, JARVIS_DATA_DIR: DATA_DIR, HOST: process.env.HOST || '0.0.0.0' };
+  const env = { ...process.env, JARVIS_DATA_DIR: DATA_DIR, HOST: process.env.HOST || '0.0.0.0', JARVIS_APP_VERSION: APP_VERSION };
   if (isAgent) {
     env.ELECTRON_RUN_AS_NODE = '1';
     if (fs.existsSync(PACKED_PIPER)) env.JARVIS_PIPER_DIR = PACKED_PIPER;
   }
-  const child = spawn(isAgent ? process.execPath : process.env.JARVIS_NODE || 'node', [path.join(ROOT, script)], { cwd: ROOT, env, stdio: 'inherit', windowsHide: true });
+  const child = spawn(isAgent ? process.execPath : process.env.JARVIS_NODE || 'node', [path.join(ROOT, script)], {
+    cwd: ROOT, env, windowsHide: true,
+    stdio: isAgent ? ['inherit', 'inherit', 'inherit', 'ipc'] : 'inherit', // canal IPC : l'agent relaie les ordres de mise à jour venant du site
+  });
   children[name] = child;
+  if (isAgent) {
+    child.on('message', (m) => {
+      if (m?.t !== 'cmd') return;
+      if (!updater) return child.connected && child.send({ t: 'upd', state: { phase: 'unsupported', current: APP_VERSION } });
+      if (m.cmd === 'update') installNow().catch((e) => ulog(`installNow : ${e.message}`));
+      else updater.check({ download: prefs.autoUpdate }).catch(() => {});
+    });
+    child.on('spawn', () => { if (updater) setTimeout(() => child.connected && child.send({ t: 'upd', state: publicState(updater.state) }), 1500); });
+  }
   child.on('error', (e) => {
     if (!isAgent && !quitting) dialog.showErrorBox('JARVIS', `Impossible de lancer Node.js (${e.message}). Installez Node 22+ (https://nodejs.org).`);
   });
@@ -63,6 +120,7 @@ function waitForServer(retries = 60) {
   });
 }
 
+// ---------------------------------------------------------------- fenêtre + icône
 function createWindow() {
   win = new BrowserWindow({
     width: 1180, height: 780, minWidth: 380, minHeight: 560,
@@ -80,6 +138,7 @@ function createWindow() {
     if (!isMain || code === -3) return;
     win.loadFile(path.join(__dirname, 'offline.html'), { query: { url: APP_URL } });
   });
+  win.webContents.on('did-finish-load', () => { if (updater) onUpdateState(updater.state); });
   let warned = false;
   win.on('close', (e) => {
     if (quitting) return;
@@ -97,52 +156,80 @@ function showWindow() {
 
 const isPaused = () => fs.existsSync(PAUSE_FILE);
 
+function refreshTray() {
+  if (!tray) return;
+  const s = updater?.state;
+  const items = [
+    { label: 'Ouvrir JARVIS', click: showWindow },
+    { type: 'separator' },
+    {
+      label: 'Suspendre le contrôle du PC', type: 'checkbox', checked: isPaused(),
+      click: (item) => { item.checked ? fs.writeFileSync(PAUSE_FILE, '') : fs.rmSync(PAUSE_FILE, { force: true }); refreshTray(); },
+    },
+    {
+      label: 'Lancer au démarrage de Windows', type: 'checkbox', checked: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin,
+      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] }),
+    },
+    { type: 'separator' },
+    { label: `JARVIS v${APP_VERSION}`, enabled: false },
+  ];
+  if (updater) {
+    if (s.phase === 'ready') items.push({ label: `Redémarrer pour installer la v${s.latest}`, click: () => installNow() });
+    else if (s.phase === 'downloading') items.push({ label: `Téléchargement de la v${s.latest}… ${s.percent} %`, enabled: false });
+    else if (s.phase === 'available') items.push({ label: `Installer la v${s.latest}`, click: () => installNow() });
+    else if (s.phase === 'major') items.push({ label: `v${s.latest} : réinstallation nécessaire (site)`, click: () => shell.openExternal(`${SERVER_URL}/download`) });
+    else items.push({ label: s.phase === 'checking' ? 'Recherche de mises à jour…' : 'Rechercher une mise à jour', enabled: s.phase !== 'checking', click: () => updater.check({ download: prefs.autoUpdate }) });
+    items.push(
+      { label: 'Mises à jour automatiques', type: 'checkbox', checked: prefs.autoUpdate, click: (i) => { prefs.autoUpdate = i.checked; savePrefs(); } },
+      { label: 'Redémarrer seul pour installer', type: 'checkbox', checked: prefs.autoRestart, click: (i) => { prefs.autoRestart = i.checked; savePrefs(); } },
+    );
+  }
+  items.push({ type: 'separator' }, { label: 'Quitter JARVIS', click: () => { quitting = true; app.quit(); } });
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
 function buildTray() {
   tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 32, height: 32 }));
-  tray.setToolTip('JARVIS — à l’écoute');
-  const refresh = () =>
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Ouvrir JARVIS', click: showWindow },
-      { type: 'separator' },
-      {
-        label: 'Suspendre le contrôle du PC', type: 'checkbox', checked: isPaused(),
-        click: (item) => { item.checked ? fs.writeFileSync(PAUSE_FILE, '') : fs.rmSync(PAUSE_FILE, { force: true }); refresh(); },
-      },
-      {
-        label: 'Lancer au démarrage de Windows', type: 'checkbox', checked: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin,
-        click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] }),
-      },
-      { type: 'separator' },
-      { label: 'Quitter JARVIS', click: () => { quitting = true; app.quit(); } },
-    ]));
-  refresh();
+  tray.setToolTip(`JARVIS v${APP_VERSION} — à l’écoute`);
+  refreshTray();
   tray.on('click', showWindow);
   tray.on('double-click', showWindow);
 }
 
+// ---------------------------------------------------------------- IPC (interface web <-> appli)
 ipcMain.handle('jarvis:hostname', () => os.hostname());
-ipcMain.handle('jarvis:agent-configured', () => { try { return !!JSON.parse(fs.readFileSync(AGENT_CONFIG, 'utf8')).token; } catch { return false; } });
+ipcMain.handle('jarvis:agent-configured', () => !!readJson(AGENT_CONFIG)?.token);
 ipcMain.handle('jarvis:connect-agent', (_e, cfg) => {
   if (!cfg?.server || !cfg?.token) throw new Error('Configuration invalide');
   if (new URL(cfg.server).origin !== ORIGIN) throw new Error('Serveur inattendu');
-  let prev = {};
-  try { prev = JSON.parse(fs.readFileSync(AGENT_CONFIG, 'utf8')); } catch {}
+  const prev = readJson(AGENT_CONFIG) || {};
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(AGENT_CONFIG, JSON.stringify({ autonomy: 'balanced', ...prev, ...cfg }, null, 2), { mode: 0o600 });
   children.agent?.kill(); // redémarré automatiquement avec la nouvelle configuration
   return true;
 });
-ipcMain.handle('jarvis:get-autonomy', () => { try { return JSON.parse(fs.readFileSync(AGENT_CONFIG, 'utf8')).autonomy || 'balanced'; } catch { return 'balanced'; } });
+ipcMain.handle('jarvis:get-autonomy', () => readJson(AGENT_CONFIG)?.autonomy || 'balanced');
 ipcMain.handle('jarvis:set-autonomy', (_e, v) => {
   if (!['cautious', 'balanced', 'trusting'].includes(v)) return false;
-  try {
-    const cfg = JSON.parse(fs.readFileSync(AGENT_CONFIG, 'utf8'));
-    cfg.autonomy = v;
-    fs.writeFileSync(AGENT_CONFIG, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-    return true;
-  } catch { return false; }
+  const cfg = readJson(AGENT_CONFIG);
+  if (!cfg) return false;
+  cfg.autonomy = v;
+  fs.writeFileSync(AGENT_CONFIG, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  return true;
+});
+ipcMain.handle('jarvis:app-info', () => ({ version: APP_VERSION, source: BOOT?.source || 'dev', bundled: BOOT?.bundledVersion || APP_VERSION, updates: !!updater }));
+ipcMain.handle('jarvis:update-state', () => (updater ? publicState(updater.state) : { phase: 'unsupported', current: APP_VERSION }));
+ipcMain.handle('jarvis:update-check', async () => (updater ? publicState(await updater.check({ download: prefs.autoUpdate })) : { phase: 'unsupported', current: APP_VERSION }));
+ipcMain.handle('jarvis:update-install', () => installNow());
+ipcMain.handle('jarvis:update-prefs', () => ({ ...prefs }));
+ipcMain.handle('jarvis:update-set-prefs', (_e, p) => {
+  if (typeof p?.autoUpdate === 'boolean') prefs.autoUpdate = p.autoUpdate;
+  if (typeof p?.autoRestart === 'boolean') prefs.autoRestart = p.autoRestart;
+  savePrefs(); refreshTray();
+  return { ...prefs };
 });
 
+// ---------------------------------------------------------------- démarrage
 app.whenReady().then(async () => {
   // DNS sécurisé (DoH) avec repli sur le DNS du système : évite qu'un routeur qui met en cache une mauvaise réponse bloque le site.
   try {
@@ -152,7 +239,6 @@ app.whenReady().then(async () => {
       secureDnsServers: ['https://cloudflare-dns.com/dns-query', 'https://dns.google/dns-query'],
     });
   } catch {}
-
   // Micro autorisé uniquement pour le site JARVIS.
   const ok = (wc) => (wc?.getURL?.() || '').startsWith(ORIGIN);
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && ok(wc)));
@@ -172,10 +258,17 @@ app.whenReady().then(async () => {
   if (LOCAL) {
     try { await waitForServer(); } catch (e) { dialog.showErrorBox('JARVIS', e.message); quitting = true; return app.quit(); }
   }
-  // Démarrage silencieux au lancement de Windows (--hidden) : on reste dans la zone de notification.
   // Le micro doit rester actif en arrière-plan : la fenêtre est créée même si elle reste masquée.
   createWindow();
   if (process.argv.includes('--hidden')) win.hide();
+
+  if (updater) {
+    // Démarrage réussi => la version téléchargée devient « confirmée » ; sinon elle sera abandonnée au 4e lancement raté.
+    setTimeout(() => updater.confirm(), Number(process.env.JARVIS_UPDATE_CONFIRM_MS || 8000));
+    // Recherche peu après le démarrage, puis toutes les 6 h.
+    setTimeout(() => updater.check({ download: prefs.autoUpdate }), Number(process.env.JARVIS_UPDATE_FIRST_MS || 25000));
+    setInterval(() => updater.check({ download: prefs.autoUpdate }), 6 * 3600 * 1000).unref();
+  }
 });
 
 app.on('second-instance', showWindow);

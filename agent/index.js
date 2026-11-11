@@ -122,8 +122,9 @@ function connect(cfg) {
   ws.on('open', () => {
     send({
       type: 'hello',
-      info: { name: cfg.name || os.hostname(), os: `${os.type()} ${os.release()} (${os.arch()})`, user: os.userInfo().username, home: os.homedir(), tts: ttsAvailable() },
+      info: { name: cfg.name || os.hostname(), os: `${os.type()} ${os.release()} (${os.arch()})`, user: os.userInfo().username, home: os.homedir(), tts: ttsAvailable(), version: process.env.JARVIS_APP_VERSION || '', canUpdate: !!process.send },
     });
+    if (lastUpd) send({ type: 'app_status', state: lastUpd });
     clearInterval(pingTimer);
     pingTimer = setInterval(() => ws?.readyState === WebSocket.OPEN && ws.send('ping'), 25000);
   });
@@ -140,6 +141,10 @@ function connect(cfg) {
       onToolCall(msg).catch((e) => log('erreur outil', e));
     } else if (msg.type === 'approval_decision') {
       pending.get(msg.callId)?.(!!msg.approved);
+    } else if (msg.type === 'app_cmd') {
+      // Mise à jour de l'appli de bureau demandée depuis le site / le téléphone : relayée à l'appli (Electron) par le canal IPC.
+      if (process.send) process.send({ t: 'cmd', cmd: msg.cmd === 'update' ? 'update' : 'check' });
+      else send({ type: 'app_status', state: { phase: 'unsupported', current: process.env.JARVIS_APP_VERSION || '' } });
     } else if (msg.type === 'rc_sub') {
       remote.sub(!!msg.on, msg.opts || {});
     } else if (msg.type === 'rc_input') {
@@ -172,6 +177,14 @@ function start() {
   }
   connect(cfg);
 }
+
+// État des mises à jour (venant de l'appli Electron) -> transmis au site pour affichage (PC connecté : version, téléchargement…)
+let lastUpd = null;
+process.on('message', (m) => {
+  if (m?.t !== 'upd') return;
+  lastUpd = m.state;
+  send({ type: 'app_status', state: m.state });
+});
 
 process.on('uncaughtException', (e) => log('exception :', e));
 process.on('unhandledRejection', (e) => log('rejet :', e));

@@ -6,7 +6,7 @@ import { chat } from '../../shared/ai.js';
 import { resolveAi } from '../../shared/aiconf.js';
 import { AGENT_TOOLS, SERVER_TOOLS, toOpenAITools } from '../../shared/tools.js';
 import { systemPrompt } from '../../shared/prompt.js';
-import { rcOpts } from '../../shared/rc.js';
+import { rcOpts, cleanAppState } from '../../shared/rc.js';
 
 const MAX_STEPS = 14;
 const MAX_TOOL_TEXT = 20000;
@@ -49,7 +49,7 @@ export class UserHub extends DurableObject {
     return this.#sockets('agent').map((ws) => ({ ws, ...ws.deserializeAttachment() }));
   }
   #agentList() {
-    return this.#agents().map((a) => ({ id: a.deviceId, name: a.name, os: a.os || '', user: a.user || '', home: a.home || '', tts: !!a.tts, connectedAt: a.connectedAt }));
+    return this.#agents().map((a) => ({ id: a.deviceId, name: a.name, os: a.os || '', user: a.user || '', home: a.home || '', tts: !!a.tts, appVersion: a.appVersion || '', canUpdate: !!a.canUpdate, connectedAt: a.connectedAt }));
   }
   #toClients(msg) {
     for (const ws of this.#sockets('client')) send(ws, msg);
@@ -192,10 +192,14 @@ export class UserHub extends DurableObject {
         user: String(msg.info?.user || '').slice(0, 60),
         home: String(msg.info?.home || '').slice(0, 200),
         tts: !!msg.info?.tts,
+        appVersion: String(msg.info?.version || '').slice(0, 20),
+        canUpdate: !!msg.info?.canUpdate,
       });
       this.#pushState();
     } else if (msg.type === 'stats') {
       this.#toClients({ type: 'stats', agentId: att.deviceId, stats: msg.stats });
+    } else if (msg.type === 'app_status') {
+      this.#toClients({ type: 'app_status', agentId: att.deviceId, state: cleanAppState(msg.state) });
     } else if (msg.type === 'rc_error') {
       for (const c of this.#sockets('client')) {
         if ((c.deserializeAttachment() || {}).rc === att.deviceId) send(c, { type: 'rc_error', message: String(msg.message || '').slice(0, 200) });
@@ -233,6 +237,9 @@ export class UserHub extends DurableObject {
       ws.serializeAttachment({ ...att, rc: agentId, rcOpts: rcOpts(msg.opts) });
       send(ws, { type: 'rc_started', agentId });
       this.#rcSync();
+    } else if (msg.type === 'app_cmd') { // mise à jour de l'appli de bureau demandée depuis le site/téléphone
+      const a = this.#agents().find((x) => x.deviceId === String(msg.agentId || ''));
+      if (a) send(a.ws, { type: 'app_cmd', cmd: msg.cmd === 'update' ? 'update' : 'check' });
     } else if (msg.type === 'rc_stop') {
       ws.serializeAttachment({ ...att, rc: null });
       this.#rcSync();

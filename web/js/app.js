@@ -23,6 +23,8 @@ const S = {
   prefs: { speak: true, speakAll: false, follow: true, voiceOk: false, debug: false, depth: 0.86, ...store.get('jv-prefs', {}) },
   approvals: [],
   stats: { cpu: [], ram: [] },
+  appStatus: {}, // état des mises à jour de l'appli de bureau, par PC
+  connAt: {}, // date de dernière connexion de chaque PC (pour repérer une reconnexion)
 };
 
 if (!S.token) location.replace(`/auth/?next=${encodeURIComponent(location.pathname)}`);
@@ -84,6 +86,7 @@ function render() {
   $('#pc-os').textContent = agent?.os || '—';
   $('#pc-user').textContent = agent?.user || '—';
   $('#pc-voice').textContent = agent ? (agent.tts ? 'Piper (grave)' : 'Navigateur') : '—';
+  renderPcApp();
 }
 function setPhase(p) { S.phase = p; render(); }
 function setVoice(m) { S.voiceMode = m; render(); }
@@ -384,12 +387,18 @@ function onWs(m) {
     case 'auth_error': logout(); break;
     case 'state':
       S.agents = m.agents; S.busy = m.busy;
+      // Un agent qui vient de se reconnecter (ex. après une mise à jour) repart d'un statut vierge.
+      for (const a of m.agents) {
+        if (S.connAt[a.id] && S.connAt[a.id] !== a.connectedAt) delete S.appStatus[a.id];
+        S.connAt[a.id] = a.connectedAt;
+      }
       if (!m.busy && S.phase === 'thinking') setPhase('idle');
       render();
       remote.onAgents(m.agents);
       break;
     case 'rc_started': case 'rc_error': remote.onMessage(m); break;
     case 'stats': onStats(m.stats); break;
+    case 'app_status': S.appStatus[m.agentId] = m.state; renderPcApp(); break;
     case 'user_message': if (!mine) addMsg('user', m.text + (m.via === 'voice' ? ' 🎙' : '')); break;
     case 'status':
       if (m.state === 'thinking' && S.phase === 'idle' && mine) setPhase('thinking');
@@ -517,6 +526,65 @@ async function enterApp() {
   }
 }
 
+
+// ---------------------------------------------------------------- mises à jour de l'appli de bureau
+const vgt = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+let latestApp = null; // manifeste public /update.json (version la plus récente publiée)
+fetch('/update.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((m) => { latestApp = m; renderPcApp(); }).catch(() => {});
+
+const UPD_TEXT = {
+  checking: 'Recherche de mises à jour…', downloading: (s) => `Téléchargement de la v${s.latest}… ${s.percent} %`, ready: (s) => `v${s.latest} prête : redémarrage pour l'installer…`,
+  restarting: 'Redémarrage en cours…', uptodate: 'Appli à jour.', unsupported: 'Cet agent ne gère pas les mises à jour.', error: (s) => `Erreur de mise à jour : ${s.error || 'inconnue'}`,
+  major: (s) => `La v${s.latest} demande une réinstallation de l'appli.`,
+};
+const updText = (s) => { const t = UPD_TEXT[s.phase]; return typeof t === 'function' ? t(s) : t || ''; };
+
+/** Ligne « Appli » du panneau PC : version installée, mise à jour disponible, bouton pour la lancer depuis le site/téléphone. */
+function renderPcApp() {
+  const agent = S.agents[S.agents.length - 1];
+  const box = $('#pc-upd');
+  if (!agent) { $('#pc-app').textContent = '—'; box.hidden = true; return; }
+  $('#pc-app').textContent = agent.appVersion ? `v${agent.appVersion}` : 'ancienne version';
+  const st = S.appStatus[agent.id];
+  const busy = st && ['checking', 'downloading', 'ready', 'restarting'].includes(st.phase);
+  const newer = latestApp && (!agent.appVersion || vgt(latestApp.version, agent.appVersion));
+  const btn = $('#btn-pc-update');
+  if (busy) { box.hidden = false; $('#pc-upd-text').textContent = updText(st); btn.hidden = true; return; }
+  btn.hidden = false;
+  if (st && ['error', 'unsupported', 'major'].includes(st.phase)) { box.hidden = false; $('#pc-upd-text').textContent = updText(st); btn.hidden = st.phase !== 'error' || !newer; return; }
+  if (newer) {
+    box.hidden = false;
+    if (agent.canUpdate) { $('#pc-upd-text').textContent = `v${latestApp.version} disponible`; btn.textContent = 'Mettre à jour le PC'; }
+    else { $('#pc-upd-text').textContent = `v${latestApp.version} disponible : cette appli est trop ancienne, réinstallez-la (/download).`; btn.hidden = true; }
+  } else box.hidden = true;
+}
+$('#btn-pc-update').onclick = () => {
+  const agent = S.agents[S.agents.length - 1];
+  if (!agent) return;
+  S.appStatus[agent.id] = { phase: 'checking', current: agent.appVersion };
+  renderPcApp();
+  wsSend({ type: 'app_cmd', agentId: agent.id, cmd: 'update' });
+};
+
+/** Appli de bureau (Electron) : bannière « mise à jour prête » + réglages. */
+function renderDesktopUpdate(s) {
+  const bar = $('#upd-bar'), text = $('#upd-text'), btn = $('#upd-btn');
+  if (!s || ['unsupported', 'idle', 'uptodate', 'checking', 'error'].includes(s.phase)) { bar.hidden = true; } else {
+    bar.hidden = false; bar.classList.toggle('busy', s.phase === 'downloading' || s.phase === 'restarting');
+    text.textContent = s.phase === 'available' ? `Mise à jour v${s.latest} disponible` : updText(s);
+    btn.hidden = !['available', 'ready', 'major'].includes(s.phase);
+    btn.textContent = s.phase === 'ready' ? 'Redémarrer maintenant' : s.phase === 'major' ? 'Télécharger' : 'Installer et redémarrer';
+    btn.onclick = () => (s.phase === 'major' ? window.open('/download', '_blank') : desktop.update.install());
+  }
+  const info = $('#set-app-ver');
+  if (info && s) info.textContent = `Version installée : v${s.current}${s.phase === 'uptodate' ? ' — à jour' : s.latest ? ` — v${s.latest} : ${s.phase}` : ''}`;
+  const inst = $('#btn-app-install');
+  if (inst) inst.hidden = !(s && ['available', 'ready'].includes(s.phase));
+}
+if (desktop?.update) {
+  desktop.update.state().then(renderDesktopUpdate).catch(() => {});
+  desktop.update.onState(renderDesktopUpdate);
+}
 // ---------------------------------------------------------------- réglages
 function savePrefs() { store.set('jv-prefs', S.prefs); }
 async function openSettings() {
@@ -530,6 +598,12 @@ async function openSettings() {
   depth.oninput = () => { S.prefs.depth = Number(depth.value); savePrefs(); };
   $('#set-user').textContent = `Connecté : ${S.user.username}${S.user.isAdmin ? ' (admin)' : ''}`;
   $('#set-desktop').hidden = !desktop;
+  $('#set-app').hidden = !desktop?.update;
+  if (desktop?.update) {
+    const p = await desktop.update.prefs();
+    $('#set-autoupd').checked = !!p.autoUpdate; $('#set-autorestart').checked = !!p.autoRestart;
+    renderDesktopUpdate(await desktop.update.state());
+  }
   if (desktop) $('#set-autonomy').value = (await desktop.getAutonomy?.()) || 'balanced';
   try {
     const s = await json('/api/settings');
@@ -583,6 +657,10 @@ $('#btn-close-settings').onclick = async () => {
 };
 $('#btn-logout').onclick = () => { $('#settings').close(); logout(); };
 $('#btn-clear').onclick = async () => { await api('/api/history', { method: 'DELETE' }); $('#log').innerHTML = ''; addMsg('sys', 'Historique effacé.'); };
+$('#set-autoupd').onchange = (e) => desktop?.update?.setPrefs({ autoUpdate: e.target.checked });
+$('#set-autorestart').onchange = (e) => desktop?.update?.setPrefs({ autoRestart: e.target.checked });
+$('#btn-app-check').onclick = async () => { $('#set-app-ver').textContent = 'Recherche…'; renderDesktopUpdate(await desktop.update.check()); };
+$('#btn-app-install').onclick = () => desktop.update.install();
 $('#set-autonomy').onchange = (e) => desktop?.setAutonomy?.(e.target.value);
 
 // ---------------------------------------------------------------- événements UI

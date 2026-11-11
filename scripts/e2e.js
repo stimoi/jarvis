@@ -179,6 +179,28 @@ try {
     const m = await next((x) => x.type === 'assistant_message');
     assert.match(m.text, /Mémorisé/);
   });
+  await step('mise à jour à distance : version de l’appli, ordre relayé à l’agent, statut relayé (nettoyé) au client', async () => {
+    const dev2 = (await post('/api/devices', { name: 'PC-maj' }, token)).json;
+    const fake = new WebSocket(`ws://127.0.0.1:${PORT}/ws`, ['jarvis.v1', dev2.token]);
+    const got = [];
+    fake.on('message', (d) => { const t = d.toString(); if (t !== 'pong') got.push(JSON.parse(t)); });
+    await new Promise((r) => fake.on('open', r));
+    fake.send(JSON.stringify({ type: 'hello', info: { name: 'PC-maj', version: '0.4.0', canUpdate: true } }));
+    const st = await next((m) => m.type === 'state' && m.agents.some((a) => a.name === 'PC-maj' && a.appVersion === '0.4.0' && a.canUpdate === true), 15000, 'agent PC-maj avec version');
+    const id = st.agents.find((a) => a.name === 'PC-maj').id;
+    ws.send(JSON.stringify({ type: 'app_cmd', agentId: id, cmd: 'update' }));
+    await waitFor(() => got.find((m) => m.type === 'app_cmd' && m.cmd === 'update'), 5000, 'ordre de mise à jour reçu par l’agent');
+    ws.send(JSON.stringify({ type: 'app_cmd', agentId: 'inexistant', cmd: 'update' }));
+    fake.send(JSON.stringify({ type: 'app_status', state: { phase: 'downloading', current: '0.4.0', latest: '0.4.1', percent: 150, evil: '<script>' } }));
+    const s = await next((m) => m.type === 'app_status' && m.agentId === id, 8000, 'statut de mise à jour');
+    assert.equal(s.state.phase, 'downloading'); assert.equal(s.state.percent, 100, 'pourcentage non borné');
+    assert.ok(!('evil' in s.state), 'champ inconnu transmis');
+    await sleep(300);
+    assert.equal(got.filter((m) => m.type === 'app_cmd').length, 1, 'ordre envoyé à un agent inexistant');
+    fake.close();
+    await sleep(200);
+    inbox = inbox.filter((m) => m.type !== 'state');
+  });
   await step('transcription : /api/stt relaie vers le fournisseur', async () => {
     const r = await post('/api/stt', null, token, Buffer.alloc(4000, 1));
     assert.equal(r.status, 200); assert.match(r.json.text, /Jarvis/);

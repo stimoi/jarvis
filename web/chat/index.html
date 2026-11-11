@@ -27,6 +27,11 @@
       <button id="btn-settings" class="icon-btn" aria-label="Réglages">⚙</button>
     </header>
 
+    <div id="upd-bar" class="upd-bar" hidden>
+      <span id="upd-text"></span>
+      <button id="upd-btn" class="btn small primary" type="button">Redémarrer</button>
+    </div>
+
     <div class="main">
       <aside class="col left">
         <section class="panel">
@@ -80,8 +85,13 @@
             <dt>Système</dt><dd id="pc-os">—</dd>
             <dt>Session</dt><dd id="pc-user">—</dd>
             <dt>Voix</dt><dd id="pc-voice">—</dd>
+            <dt>Appli</dt><dd id="pc-app">—</dd>
             <dt>Allumé depuis</dt><dd id="pc-uptime">—</dd>
           </dl>
+          <div id="pc-upd" class="pc-upd" hidden>
+            <span id="pc-upd-text" class="muted"></span>
+            <button id="btn-pc-update" class="btn small primary" type="button">Mettre à jour le PC</button>
+          </div>
         </section>
         <section class="panel">
           <h3>Entrée audio</h3>
@@ -169,6 +179,16 @@
       <h3>Invitations</h3>
       <div class="row" style="margin-top:0"><button class="btn" id="btn-invite">Créer un code d'invitation</button></div>
       <div id="invite-list" class="invite-list"></div>
+    </div>
+    <div id="set-app" hidden>
+      <h3>Appli de bureau</h3>
+      <p id="set-app-ver" class="muted"></p>
+      <div class="row" style="margin-top:0">
+        <button class="btn" id="btn-app-check" type="button">Rechercher une mise à jour</button>
+        <button class="btn primary" id="btn-app-install" type="button" hidden>Installer et redémarrer</button>
+      </div>
+      <label class="check"><input type="checkbox" id="set-autoupd"> Télécharger automatiquement les mises à jour</label>
+      <label class="check"><input type="checkbox" id="set-autorestart"> Redémarrer seul pour les installer</label>
     </div>
     <div id="set-desktop" hidden>
       <h3>Ce PC</h3>

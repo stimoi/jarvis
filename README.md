@@ -53,6 +53,18 @@ Quand un PC est connecté, le bouton **🖥** du chat ouvre son écran **en dire
 Techniquement : l'agent PC lance un processus PowerShell persistant (`agent/rc-worker.ps1`) qui capture l'écran (JPEG binaire, curseur dessiné) et injecte les entrées (SendInput) ; les trames passent par le Durable Object en WebSocket binaire. La diffusion ne démarre que si quelqu'un regarde, et s'arrête 30 s après.
 
 Garde-fous : même compte obligatoire · bloqué par l'interrupteur **PAUSE** · une notification Windows s'affiche sur le PC au début d'une session · chaque session est écrite dans `agent-audit.log` · désactivable avec `"remote": false` dans `agent.json`. ⚠ Contrairement aux ordres donnés à Jarvis, ce contrôle manuel n'est **pas** filtré par le moteur de risque : tu pilotes toi-même.
+## Mises à jour à distance de l'appli de bureau
+
+À partir de la **v0.4.0**, l'appli se met à jour toute seule : elle cherche une nouvelle version au démarrage puis toutes les 6 h, la télécharge (≈ 300 Ko), la vérifie, et propose **« Redémarrer maintenant »** (bannière en haut du chat, menu de l'icône, ou redémarrage automatique si tu coches l'option). Aucune réinstallation, aucun droit administrateur.
+
+- **Depuis le téléphone / le site** : dans le panneau « PC connecté », la ligne *Appli* affiche la version installée ; si une version plus récente existe, le bouton **« Mettre à jour le PC »** lance le téléchargement et le redémarrage sur le PC (progression affichée en direct).
+- **Réglages (⚙ → Appli de bureau)** et menu de l'icône : rechercher maintenant, téléchargement automatique, redémarrage automatique.
+- **Sécurité** : le manifeste `update.json` est **signé (Ed25519)** avec une clé privée qui reste sur le PC du développeur (`data/update-key.pem`, jamais versionnée) ; la clé publique est dans l'appli (`desktop/boot.cjs`). L'archive est en plus vérifiée par SHA-256. Un site ou un compte GitHub piraté ne peut donc pas faire exécuter de code chez les utilisateurs. Les versions plus anciennes sont refusées.
+- **Filet de sécurité** : une version qui plante au chargement est supprimée et l'appli repart aussitôt sur la précédente (et n'est plus reproposée) ; une version jamais « confirmée » après 3 lancements est abandonnée.
+- **Réinstallation nécessaire** seulement quand le moteur (Electron) change : l'appli le signale (« version majeure ») et ouvre la page de téléchargement.
+- **Les applis installées avant la v0.4.0** ne savent pas se mettre à jour : à réinstaller une fois depuis `/download`.
+
+Publier une version : monter `version` dans `package.json`, puis `npm run publish:app` (reconstruit l'appli, signe la mise à jour, crée la Release GitHub avec `JARVIS-windows-x64.zip` + `JARVIS-update-X.Y.Z.zip` + `update.json`, met à jour `jarvis.avenox.fr/update.json`). ⚠ **Sauvegarde `data/update-key.pem`** : sans elle, les applis déjà installées ne pourraient plus être mises à jour. Une version corrigée doit avoir un numéro supérieur à celle annulée.
 ## Sécurité
 
 Le niveau de risque est calculé **sur le PC par l'agent** (`agent/safety.js`), jamais par le modèle ni par le serveur ; la validation s'affiche sur tous tes appareils (le premier qui répond gagne).
@@ -92,6 +104,8 @@ npm run cf:dev           # Worker en local (wrangler dev)
 npm test                 # 18 tests e2e contre le serveur Node
 npm run test:worker      # les mêmes contre le Worker local (Durable Object + D1)
 npm run test:remote      # écran/souris/clavier à distance (vraies images, vrai clic ; -- --worker pour le Worker local)
+npm run test:update      # module de mise à jour (signature, SHA-256, rétrogradation, archive incomplète…)
+node scripts/e2e-update.js  # mise à jour réelle sur l'appli empaquetée (nécessite npm run package)
 npm run test:ai          # chaîne de modèles (quota, modèle disparu…) contre un faux fournisseur`nnpm run check            # test réel de ta clé : LLM + appel d'outil + Whisper + « jarvis »
 ```
 
