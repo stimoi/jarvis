@@ -49,8 +49,14 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) step(); else demo.t
     d.className = 'panel dl-item';
     d.innerHTML = '<div><div class="caps" style="color:var(--ice)"></div><div class="muted mono"></div></div><a class="btn primary" href="/download" download>Télécharger</a>';
     d.querySelector('.caps').textContent = `JARVIS pour Windows — v${m.version}`;
-    d.querySelector('.muted').textContent = `${m.name} · ${(m.size / 1e6).toFixed(0)} Mo · Windows 10/11 64 bits`;
+    d.querySelector('.muted').textContent = `Installeur ${m.name} · ${(m.size / 1e6).toFixed(0)} Mo · Windows 10/11 64 bits`;
     box.append(d);
+    if (m.portable) {
+      const p = document.createElement('p');
+      p.className = 'muted';
+      p.innerHTML = 'Sans installation : <a href="/download/portable" download>version portable (zip, ' + (m.portable.size / 1e6).toFixed(0) + ' Mo)</a>. Windows peut afficher « SmartScreen » : « Informations complémentaires » → « Exécuter quand même » (l\'installeur n\'est pas signé).';
+      box.append(p);
+    }
     if (m.repo) {
       const src = document.createElement('p');
       src.className = 'muted';

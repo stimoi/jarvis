@@ -21,6 +21,13 @@ if (!process.argv.includes('--skip-build')) {
   if (node(['scripts/package.js']).status !== 0) process.exit(1);
 }
 if (!fs.existsSync(ZIP)) throw new Error(`Archive introuvable : ${ZIP}`);
+const SETUP_NAME = 'JARVIS-Setup.exe';
+const SETUP = path.join(root, 'downloads', SETUP_NAME);
+if (!process.argv.includes('--skip-build')) {
+  console.log('› installeur Windows…');
+  if (node(['scripts/make-installer.js']).status !== 0) process.exit(1);
+}
+if (!fs.existsSync(SETUP)) throw new Error(`Installeur introuvable : ${SETUP}`);
 
 const repo = gh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']).stdout.trim();
 if (!repo) throw new Error('Dépôt GitHub introuvable : fais « gh auth login » et pousse le dépôt (origin).');
@@ -33,18 +40,22 @@ const UPDATE_ZIP = path.join(root, 'downloads', `JARVIS-update-${version}.zip`);
 const MANIFEST = path.join(root, 'downloads', 'update.json');
 
 console.log(`› Release GitHub ${repo} ${tag}…`);
-const assets = [ZIP, UPDATE_ZIP, MANIFEST];
+const assets = [SETUP, ZIP, UPDATE_ZIP, MANIFEST];
 const exists = gh(['release', 'view', tag]).status === 0;
-const notes = `JARVIS ${tag} pour Windows 10/11 64 bits. Première installation : décompressez ${NAME} puis lancez JARVIS.exe. Les applis déjà installées (v0.4.0+) se mettent à jour toutes seules.`;
+const notes = `JARVIS ${tag} pour Windows 10/11 64 bits. Première installation : lancez ${SETUP_NAME} (ou, sans installation, décompressez ${NAME} puis lancez JARVIS.exe). Les applis déjà installées (v0.4.0+) se mettent à jour toutes seules.`;
 const r = exists
   ? gh(['release', 'upload', tag, ...assets, '--clobber', '--repo', repo], false)
   : gh(['release', 'create', tag, ...assets, '--repo', repo, '--title', `JARVIS ${tag}`, '--notes', notes, '--latest'], false);
 if (r.status !== 0) process.exit(1);
 
 // Site : lien direct de téléchargement + manifeste signé de mise à jour
-const url = `https://github.com/${repo}/releases/latest/download/${NAME}`;
-fs.writeFileSync(path.join(root, 'web', 'download.json'), JSON.stringify({ name: NAME, version, size: fs.statSync(ZIP).size, url, repo }, null, 2));
-fs.writeFileSync(path.join(root, 'web', '_redirects'), `/download ${url} 302\n`);
+const base = `https://github.com/${repo}/releases/latest/download`;
+const url = `${base}/${SETUP_NAME}`;
+fs.writeFileSync(path.join(root, 'web', 'download.json'), JSON.stringify({
+  name: SETUP_NAME, version, size: fs.statSync(SETUP).size, url,
+  portable: { name: NAME, size: fs.statSync(ZIP).size, url: `${base}/${NAME}` }, repo,
+}, null, 2));
+fs.writeFileSync(path.join(root, 'web', '_redirects'), `/download ${url} 302\n/download/portable ${base}/${NAME} 302\n`);
 fs.copyFileSync(MANIFEST, path.join(root, 'web', 'update.json'));
 console.log(`› lien direct : ${url}`);
 

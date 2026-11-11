@@ -1,43 +1,45 @@
 {
-    "name":  "jarvis",
-    "version":  "0.5.1",
-    "private":  true,
-    "description":  "JARVIS - assistant vocal propulsé par l\u0027IA (Groq / xAI), contrôle du PC depuis le PC ou le téléphone",
-    "type":  "module",
-    "engines":  {
-                    "node":  "\u003e=22.5"
-                },
-    "scripts":  {
-                    "start":  "node scripts/run-all.js",
-                    "server":  "node server/index.js",
-                    "agent":  "node agent/index.js",
-                    "agent:setup":  "node agent/setup.js",
-                    "desktop":  "electron desktop/main.cjs",
-                    "icons":  "node scripts/make-icons.js",
-                    "test":  "node scripts/e2e.js",
-                    "check":  "node scripts/live-check.js",
-                    "test:ai":  "node scripts/test-ai.js",
-                    "test:info":  "node scripts/test-info.js",
-                    "test:tts":  "node scripts/test-tts.js",
-                    "test:mail":  "node scripts/test-mail.js",
-                    "test:update":  "node scripts/test-update.js",
-                    "desktop:local":  "electron desktop/main.cjs --local",
-                    "package":  "node scripts/package.js",
-                    "cf:dev":  "wrangler dev",
-                    "cf:deploy":  "wrangler deploy",
-                    "test:worker":  "node scripts/e2e.js --worker",
-                    "publish:app":  "node scripts/publish-app.js",
-                    "test:remote":  "node scripts/e2e-remote.js"
-                },
-    "dependencies":  {
-                         "express":  "^4.21.2",
-                         "ws":  "^8.18.0"
-                     },
-    "optionalDependencies":  {
-                                 "electron":  "^33.0.0"
-                             },
-    "devDependencies":  {
-                            "@electron/packager":  "^20.3.0",
-                            "wrangler":  "^4.159.0"
-                        }
+    "name": "jarvis",
+    "version": "0.5.1",
+    "private": true,
+    "description": "JARVIS - assistant vocal propulsé par l'IA (Groq / xAI), contrôle du PC depuis le PC ou le téléphone",
+    "type": "module",
+    "engines": {
+        "node": ">=22.5"
+    },
+    "scripts": {
+        "start": "node scripts/run-all.js",
+        "server": "node server/index.js",
+        "agent": "node agent/index.js",
+        "agent:setup": "node agent/setup.js",
+        "desktop": "electron desktop/main.cjs",
+        "icons": "node scripts/make-icons.js",
+        "test": "node scripts/e2e.js",
+        "check": "node scripts/live-check.js",
+        "test:ai": "node scripts/test-ai.js",
+        "test:info": "node scripts/test-info.js",
+        "test:tts": "node scripts/test-tts.js",
+        "test:mail": "node scripts/test-mail.js",
+        "test:update": "node scripts/test-update.js",
+        "desktop:local": "electron desktop/main.cjs --local",
+        "package": "node scripts/package.js",
+        "installer": "node scripts/make-installer.js",
+        "cf:dev": "wrangler dev",
+        "cf:deploy": "wrangler deploy",
+        "test:worker": "node scripts/e2e.js --worker",
+        "publish:app": "node scripts/publish-app.js",
+        "test:remote": "node scripts/e2e-remote.js"
+    },
+    "dependencies": {
+        "express": "^4.21.2",
+        "ws": "^8.18.0"
+    },
+    "optionalDependencies": {
+        "electron": "^33.0.0"
+    },
+    "devDependencies": {
+        "@electron/packager": "^20.3.0",
+        "electron-builder": "^26.18.0",
+        "wrangler": "^4.159.0"
+    }
 }
