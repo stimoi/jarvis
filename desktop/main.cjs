@@ -3,7 +3,7 @@
 //  - mode « local » (développement : `npm run desktop:local`) : lance aussi le serveur Node sur ce PC.
 // La fenêtre se masque au lieu de se fermer : l'écoute « Jarvis » continue en arrière-plan.
 // Ce fichier est lancé par boot.cjs (qui choisit entre le code livré et un code plus récent téléchargé).
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session, shell, dialog, globalShortcut } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -42,7 +42,7 @@ const children = {};
 const LOG_FILE = BOOT?.logFile || path.join(app.getPath('userData'), 'updater.log');
 const ulog = (m) => { try { fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${m}\n`); } catch {} };
 const PREFS_FILE = path.join(app.getPath('userData'), 'prefs.json');
-const prefs = { autoUpdate: true, autoRestart: true, ...(readJson(PREFS_FILE) || {}) }; // mise à jour 100 % automatique par défaut (désactivable dans les Réglages)
+const prefs = { autoUpdate: true, autoRestart: true, popOnWake: true, startAtLogin: true, ...(readJson(PREFS_FILE) || {}) }; // mise à jour 100 % automatique par défaut (désactivable dans les Réglages)
 const savePrefs = () => { try { fs.mkdirSync(path.dirname(PREFS_FILE), { recursive: true }); fs.writeFileSync(PREFS_FILE, JSON.stringify(prefs)); } catch {} };
 
 const UPDATE_URLS = process.env.JARVIS_UPDATE_URL
@@ -110,6 +110,16 @@ function startChild(name, script) {
   if (isAgent) {
     child.on('message', (m) => {
       if (m?.t === 'acct-reply') { const w = acctWaiters.get(m.id); if (w) { acctWaiters.delete(m.id); m.ok ? w.resolve(m.result) : w.reject(new Error(m.error || 'Échec')); } return; }
+      if (m?.t === 'revoked') {
+        // PC retiré du compte : on oublie le jeton mort, l'interface web ré-associe aussitôt ce PC (ou à la prochaine connexion).
+        const cfg = readJson(AGENT_CONFIG);
+        if (cfg?.token) {
+          delete cfg.token; delete cfg.deviceId;
+          try { fs.writeFileSync(AGENT_CONFIG, JSON.stringify(cfg, null, 2), { mode: 0o600 }); } catch {}
+        }
+        try { win?.webContents.send('jarvis:revoked'); } catch {}
+        return;
+      }
       if (m?.t !== 'cmd') return;
       if (!updater) return child.connected && child.send({ t: 'upd', state: { phase: 'unsupported', current: APP_VERSION } });
       if (m.cmd === 'update') installNow().catch((e) => ulog(`installNow : ${e.message}`));
@@ -137,7 +147,7 @@ function waitForServer(retries = 60) {
 // ---------------------------------------------------------------- fenêtre + icône
 function createWindow() {
   win = new BrowserWindow({
-    width: 1180, height: 780, minWidth: 380, minHeight: 560,
+    width: 1180, height: 780, minWidth: 380, minHeight: 560, show: false, // affichée explicitement (jamais au démarrage de Windows)
     backgroundColor: '#010812', title: 'JARVIS', icon: ICON, autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
@@ -157,15 +167,56 @@ function createWindow() {
   win.on('close', (e) => {
     if (quitting) return;
     e.preventDefault();
-    win.hide();
+    endAutoShow(); win.hide();
     if (!warned) { warned = true; tray?.displayBalloon?.({ title: 'JARVIS', content: 'JARVIS reste actif dans la zone de notification. Clic droit sur l’icône pour quitter.', iconType: 'info' }); }
   });
+  // L'utilisateur clique dans la fenêtre ouverte automatiquement : il la « prend », elle ne se refermera plus toute seule.
+  win.on('focus', () => { if (autoShown) endAutoShow(); });
 }
 
 function showWindow() {
   if (!win) createWindow();
+  endAutoShow();
   win.show();
   win.focus();
+}
+
+// ---------------------------------------------------------------- fenêtre affichée quand on appelle « Jarvis »
+// 'wake' : la fenêtre apparaît (sans voler le clavier à l'appli en cours) ; 'done' : elle repart en arrière-plan 3 s après la fin.
+// Si l'utilisateur l'avait déjà ouverte lui-même, ou clique dedans, elle reste ouverte.
+let autoShown = false;
+let hideTimer = null;
+let micOn = true;
+function endAutoShow() {
+  clearTimeout(hideTimer);
+  if (autoShown && win && !win.isDestroyed()) win.setAlwaysOnTop(false);
+  autoShown = false;
+}
+function onVoiceEvent(kind) {
+  if (!win || win.isDestroyed()) return;
+  if (kind === 'wake') {
+    clearTimeout(hideTimer);
+    if (prefs.popOnWake && !win.isVisible()) {
+      autoShown = true;
+      win.setAlwaysOnTop(true, 'floating'); // au-dessus de l'appli en cours, sans lui prendre le clavier
+      win.showInactive();
+    }
+  } else if (kind === 'done') {
+    if (!autoShown) return;
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { if (autoShown && !win.isFocused()) { endAutoShow(); win.hide(); } }, 3000);
+  } else if (kind === 'mic-on' || kind === 'mic-off') {
+    micOn = kind === 'mic-on';
+    tray?.setToolTip(`JARVIS v${APP_VERSION} — ${micOn ? 'à l’écoute (« Jarvis »)' : 'micro coupé'}`);
+    refreshTray();
+  }
+}
+const toggleMic = () => { if (win && !win.isDestroyed()) win.webContents.send('jarvis:toggle-mic'); };
+
+/** Démarrage avec Windows, en arrière-plan (--hidden). Réécrit à chaque lancement : le chemin reste juste après une réinstallation. */
+function applyLoginItem() {
+  if (!app.isPackaged) return;
+  app.setLoginItemSettings({ openAtLogin: prefs.startAtLogin !== false, args: ['--hidden'] });
 }
 
 // 2e écran JARVIS (/dash) : plein écran sur le moniteur secondaire s'il y en a un, sinon fenêtre normale.
@@ -197,13 +248,18 @@ function refreshTray() {
     { label: 'Ouvrir JARVIS', click: showWindow },
     { label: 'Ouvrir le 2e écran', click: openDash },
     { type: 'separator' },
+    { label: micOn ? 'Couper le micro (Ctrl+Alt+J)' : 'Réactiver le micro (Ctrl+Alt+J)', click: toggleMic },
+    {
+      label: 'Afficher JARVIS quand on l’appelle', type: 'checkbox', checked: prefs.popOnWake,
+      click: (i) => { prefs.popOnWake = i.checked; savePrefs(); },
+    },
     {
       label: 'Suspendre le contrôle du PC', type: 'checkbox', checked: isPaused(),
       click: (item) => { item.checked ? fs.writeFileSync(PAUSE_FILE, '') : fs.rmSync(PAUSE_FILE, { force: true }); refreshTray(); },
     },
     {
-      label: 'Lancer au démarrage de Windows', type: 'checkbox', checked: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin,
-      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] }),
+      label: 'Lancer au démarrage de Windows (en arrière-plan)', type: 'checkbox', checked: prefs.startAtLogin !== false,
+      click: (item) => { prefs.startAtLogin = item.checked; savePrefs(); applyLoginItem(); },
     },
     { type: 'separator' },
     { label: `JARVIS v${APP_VERSION}`, enabled: false },
@@ -234,6 +290,7 @@ function buildTray() {
 // ---------------------------------------------------------------- IPC (interface web <-> appli)
 ipcMain.handle('jarvis:hostname', () => os.hostname());
 ipcMain.handle('jarvis:agent-configured', () => !!readJson(AGENT_CONFIG)?.token);
+ipcMain.handle('jarvis:agent-info', () => ({ deviceId: readJson(AGENT_CONFIG)?.deviceId || '' })); // jamais le jeton
 ipcMain.handle('jarvis:connect-agent', (_e, cfg) => {
   if (!cfg?.server || !cfg?.token) throw new Error('Configuration invalide');
   if (new URL(cfg.server).origin !== ORIGIN) throw new Error('Serveur inattendu');
@@ -251,6 +308,10 @@ ipcMain.handle('jarvis:set-autonomy', (_e, v) => {
   cfg.autonomy = v;
   fs.writeFileSync(AGENT_CONFIG, JSON.stringify(cfg, null, 2), { mode: 0o600 });
   return true;
+});
+ipcMain.on('jarvis:voice', (e, kind) => {
+  if (!String(e.senderFrame?.url || '').startsWith(`${ORIGIN}/`)) return;
+  onVoiceEvent(kind);
 });
 // Seules les pages du site JARVIS (jamais une page tierce) peuvent régler les comptes.
 ipcMain.handle('jarvis:acct', (e, op, args) => {
@@ -285,13 +346,8 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && ok(wc)));
   session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media' && ok(wc));
 
-  // Première exécution de l'appli installée : démarrage automatique avec Windows (modifiable dans le menu de l'icône).
-  const flag = path.join(DATA_DIR, '.first-run');
-  if (app.isPackaged && !fs.existsSync(flag)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(flag, new Date().toISOString());
-    app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
-  }
+  // Démarrage automatique avec Windows, en arrière-plan (modifiable dans le menu de l'icône).
+  applyLoginItem();
 
   if (LOCAL) startChild('server', 'server/index.js');
   setTimeout(() => startChild('agent', 'agent/index.js'), LOCAL ? 1200 : 0);
@@ -301,7 +357,10 @@ app.whenReady().then(async () => {
   }
   // Le micro doit rester actif en arrière-plan : la fenêtre est créée même si elle reste masquée.
   createWindow();
-  if (process.argv.includes('--hidden')) win.hide();
+  // Lancé par Windows au démarrage (--hidden) : rien ne s'affiche, JARVIS écoute en arrière-plan.
+  if (!process.argv.includes('--hidden')) win.once('ready-to-show', () => win.show());
+  // Raccourci global : couper / réactiver le micro.
+  try { globalShortcut.register('CommandOrControl+Alt+J', toggleMic); } catch {}
 
   if (updater) {
     // Démarrage réussi => la version téléchargée devient « confirmée » ; sinon elle sera abandonnée au 4e lancement raté.
@@ -315,3 +374,4 @@ app.whenReady().then(async () => {
 app.on('second-instance', showWindow);
 app.on('before-quit', () => { quitting = true; Object.values(children).forEach((c) => c.kill()); });
 app.on('window-all-closed', () => {}); // reste actif dans la zone de notification
+app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });

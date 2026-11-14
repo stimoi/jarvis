@@ -6,6 +6,7 @@ import { transcribe, checkKey, AiError } from '../../shared/ai.js';
 import { hashPassword, verifyPassword, signToken, verifyToken, sha256hex, randomToken, json } from './util.js';
 import { loadInfo, publicInfo, saveInfo, dashData } from './info.js';
 import { getEnv, providersStatus, saveKey, deleteKey, transcribeWorkersAi } from './providers.js';
+import { authUrl, handleCallback, status as googleStatus, disconnect as googleDisconnect } from './google.js';
 
 export { UserHub };
 
@@ -147,6 +148,20 @@ async function api(req, env, url) {
     if (typeof b.chatModel === 'string' && b.chatModel.trim()) {
       await env.DB.prepare("INSERT INTO settings (k, v) VALUES ('chatModel', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(b.chatModel.trim()).run();
     }
+    return json({ ok: true });
+  }
+
+  // ---------- Compte Google (Gmail + Agenda) ----------
+  if (path === '/api/google' && m === 'GET') return json(await googleStatus(env, user.id));
+  if (path === '/api/google/connect' && m === 'POST') {
+    try {
+      return json({ url: await authUrl(env, user.id) });
+    } catch (e) {
+      return json({ error: e.message }, 503);
+    }
+  }
+  if (path === '/api/google' && m === 'DELETE') {
+    await googleDisconnect(env, user.id);
     return json({ ok: true });
   }
 
@@ -303,6 +318,7 @@ export default {
     const url = new URL(req.url);
     try {
       if (url.pathname === '/ws') return await websocket(req, env);
+      if (url.pathname === '/auth/google/callback' && req.method === 'GET') return await handleCallback(env, url);
       if (url.pathname === '/api/downloads') {
         const list = env.DOWNLOADS ? (await env.DOWNLOADS.list({ prefix: 'downloads/' })).objects.map((o) => ({ name: o.key.slice(10), size: o.size, uploaded: o.uploaded })) : [];
         return json({ files: list.filter((f) => f.name) });

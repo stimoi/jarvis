@@ -171,12 +171,26 @@ function connect(cfg) {
     setStats(false);
     remote.sub(false);
     for (const resolve of pending.values()) resolve(false);
+    if (code === 4003) tokenRefused(); // appareil retiré du compte depuis le site ou le téléphone
     const wait = code === 4003 ? 15000 : backoff;
     log(`déconnecté (${code}), nouvelle tentative dans ${Math.round(wait / 1000)}s`);
     backoff = Math.min(backoff * 2, 30000);
     setTimeout(start, wait);
   });
-  ws.on('error', (e) => log('erreur réseau :', e.message));
+  ws.on('error', (e) => {
+    log('erreur réseau :', e.message);
+    if (/\b401\b/.test(e.message)) tokenRefused(); // le serveur ne connaît plus ce jeton d'appareil
+  });
+}
+
+// Jeton d'appareil refusé (PC révoqué, ou compte changé) : l'appli de bureau efface le jeton mort et ré-associe le PC au compte.
+// Hors appli de bureau (agent lancé seul), il faut refaire `npm run agent:setup`.
+let refusedAt = 0;
+function tokenRefused() {
+  if (Date.now() - refusedAt < 60000) return;
+  refusedAt = Date.now();
+  if (process.send) { log('jeton refusé : demande de ré-association à l\'appli.'); process.send({ t: 'revoked' }); }
+  else log('jeton refusé : relance `npm run agent:setup` (appareil révoqué ?)');
 }
 
 function start() {

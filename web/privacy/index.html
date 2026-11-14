@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#010812">
+  <title>Confidentialité — JARVIS</title>
+  <meta name="description" content="Règles de confidentialité de JARVIS : données Google (Gmail, Agenda) utilisées, stockage, suppression.">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/hud.css">
+  <link rel="stylesheet" href="/css/landing.css">
+  <link rel="stylesheet" href="/css/legal.css">
+</head>
+<body>
+  <header class="nav"><div class="wrap"><a class="logo caps" href="/">J.A.R.V.I.S</a></div></header>
+  <main class="legal">
+    <div class="eyebrow">Règles de confidentialité</div>
+    <h1>Tes données restent les tiennes</h1>
+    <p class="upd">Dernière mise à jour : 11 novembre 2026 · Service : jarvis.avenox.fr</p>
+
+    <p>JARVIS est un assistant vocal : tu lui parles, il agit sur ton PC et, si tu le décides, dans ton compte Google. Cette page explique quelles données JARVIS utilise, pourquoi, où elles sont gardées et comment les effacer.</p>
+
+    <h2>Ce que JARVIS reçoit de Google</h2>
+    <p>La connexion Google est <b>facultative</b> et ne se fait que sur ta demande (Réglages › Google › Connecter). Tu autorises quatre accès :</p>
+    <ul>
+      <li><b>Ton adresse e-mail Google</b> : pour afficher quel compte est connecté.</li>
+      <li><b>Lecture de ton Gmail</b> (<code>gmail.readonly</code>) : pour que JARVIS liste et résume tes mails quand tu le demandes.</li>
+      <li><b>Envoi de mails</b> (<code>gmail.send</code>) : pour envoyer un mail que tu as demandé. Chaque envoi te montre le destinataire, l'objet et le texte, et attend ta validation.</li>
+      <li><b>Événements de Google Agenda</b> (<code>calendar.events</code>) : pour lire ton agenda et créer un événement que tu as demandé, après ta validation.</li>
+    </ul>
+    <p>JARVIS ne supprime aucun mail, ne modifie aucun événement existant et ne lit rien en dehors de tes demandes : il n'y a pas de synchronisation en arrière-plan.</p>
+
+    <h2>Comment ces données sont utilisées</h2>
+    <p>Les données Google servent uniquement à fournir les fonctions que tu demandes à JARVIS, rien d'autre. Quand tu poses une question (« qu'ai-je comme mails non lus ? »), le Worker lit les mails nécessaires chez Google, puis les transmet <b>temporairement au fournisseur d'IA</b> qui rédige la réponse (Groq par défaut ; en cas de panne ou de quota : Mistral, Google Gemini, OpenRouter, Cerebras ou Cloudflare Workers AI). Ce transfert est nécessaire au fonctionnement ; il n'a lieu qu'au moment de ta demande.</p>
+    <div class="box">
+      <b>Utilisation limitée.</b> L'utilisation et le transfert vers toute autre application des informations reçues des API Google respectent la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, y compris les exigences d'utilisation limitée (« Limited Use »). JARVIS ne vend pas tes données, ne les utilise pas pour de la publicité, ne les fait lire par aucun humain (sauf avec ton accord explicite, pour un support, ou si la loi l'impose) et ne les utilise pas pour entraîner des modèles d'IA.
+    </div>
+
+    <h2>Ce qui est stocké, et où</h2>
+    <ul>
+      <li><b>Jeton d'accès Google</b> : un « jeton de rafraîchissement » qui permet de rester connecté. Il est <b>chiffré</b> (AES-256-GCM) avant d'être gardé dans la base Cloudflare D1 de JARVIS. Les jetons d'accès de courte durée ne restent qu'en mémoire.</li>
+      <li><b>Ton adresse e-mail Google</b> : conservée en clair à côté du jeton, pour l'afficher dans les Réglages.</li>
+      <li><b>Le contenu de tes mails et de ton agenda n'est pas stocké</b> : il est relu chez Google à chaque demande. Seul l'historique de la conversation (tes messages et les réponses de JARVIS, qui peuvent résumer un mail) est gardé dans l'espace de ton compte JARVIS, jusqu'à ce que tu cliques sur « Effacer l'historique ».</li>
+    </ul>
+    <p>L'hébergement est assuré par Cloudflare (Workers, D1). Les échanges avec Google et avec JARVIS sont chiffrés (HTTPS).</p>
+
+    <h2>Tes choix</h2>
+    <ul>
+      <li><b>Déconnecter Google</b> : Réglages › Google › Déconnecter. JARVIS révoque l'accès chez Google et supprime aussitôt le jeton chiffré de sa base.</li>
+      <li><b>Retirer l'accès depuis Google</b> : <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>. JARVIS ne pourra alors plus rien lire.</li>
+      <li><b>Effacer l'historique</b> des conversations : Réglages › Effacer l'historique.</li>
+      <li><b>Supprimer ton compte JARVIS et toutes ses données</b> : demande-le via le contact ci-dessous ; la suppression est faite sous 30 jours.</li>
+    </ul>
+
+    <h2>Autres données du service</h2>
+    <p>Pour fonctionner, JARVIS garde ton nom d'utilisateur, un mot de passe haché (jamais en clair), les appareils que tu as associés, tes souvenirs demandés (« retiens que… ») et l'historique de conversation. L'audio de la voix est envoyé au fournisseur de transcription le temps de la reconnaissance, puis n'est pas conservé par JARVIS. Aucune mesure d'audience ni publicité n'est utilisée.</p>
+
+    <h2>Contact</h2>
+    <p>Pour toute question ou demande de suppression : ouvre une demande sur <a href="https://github.com/stimoi/jarvis/issues" target="_blank" rel="noopener">github.com/stimoi/jarvis/issues</a> (n'y mets aucune donnée personnelle ; on te répondra pour continuer en privé).</p>
+
+    <footer><a href="/">Accueil</a> · <a href="/terms">Conditions d'utilisation</a></footer>
+  </main>
+</body>
+</html>

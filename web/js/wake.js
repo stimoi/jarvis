@@ -34,12 +34,12 @@ function lev(a, b) {
   return dp[a.length][b.length];
 }
 
-/** Cherche « jarvis » (et variantes de transcription) dans les premiers mots. */
-export function findWake(text) {
+/** Cherche « jarvis » (et variantes de transcription) dans les `maxWords` premiers mots. */
+export function findWake(text, maxWords = 5) {
   const re = /[\p{L}\p{N}]+/gu;
   let m;
   let idx = 0;
-  while ((m = re.exec(text)) && idx < 5) {
+  while ((m = re.exec(text)) && idx < maxWords) {
     const t = strip(m[0]);
     if (t.length >= 4 && (ALIASES.has(t) || lev(t, 'jarvis') <= 1)) {
       const command = text.slice(m.index + m[0].length).replace(/^[\s,.:;!?…-]+/, '').trim();
@@ -115,6 +115,12 @@ export class VoiceInput {
   pause(p) {
     this.paused = p;
     if (p) this.#reset();
+  }
+
+  /** Mode « réactif » pendant que JARVIS parle : segments courts pour pouvoir lui couper la parole rapidement. */
+  setQuick(on) {
+    this.endSilenceMs = on ? 450 : 750;
+    this.maxMs = on ? 4000 : 20000;
   }
 
   // Rééchantillonnage 48k/44.1k -> 16k par moyenne de fenêtre.

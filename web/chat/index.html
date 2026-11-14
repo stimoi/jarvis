@@ -177,6 +177,14 @@
       <p class="muted">Voix neuronales Piper, sur ton PC. Une voix se télécharge une seule fois (≈ 60-75 Mo, depuis le dépôt officiel Piper).</p>
       <div id="voice-list" class="prov-list"></div>
     </div>
+    <div id="set-google" hidden>
+      <h3>Google <span class="muted" id="google-state"></span></h3>
+      <p class="muted">Connecte ton compte pour que JARVIS lise ton Gmail et gère ton Google Agenda. L'envoi d'un mail et la création d'un événement te demandent toujours ta validation. <a href="/privacy" target="_blank" rel="noopener">Confidentialité</a></p>
+      <div class="row" style="margin-top:0">
+        <button class="btn" id="btn-google" type="button">Connecter Google</button>
+        <button class="btn danger" id="btn-google-off" type="button" hidden>Déconnecter</button>
+      </div>
+    </div>
     <div id="set-admin" hidden>
       <h3>Fournisseur IA <span class="muted" id="set-provider"></span></h3>
       <input id="set-key" type="password" placeholder="Clé API (laisser vide pour ne pas changer)" autocomplete="off">

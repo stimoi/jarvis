@@ -4,6 +4,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('jarvisDesktop', {
   hostname: () => ipcRenderer.invoke('jarvis:hostname'),
   agentConfigured: () => ipcRenderer.invoke('jarvis:agent-configured'),
+  agentInfo: () => ipcRenderer.invoke('jarvis:agent-info'),
+  onRevoked: (cb) => { ipcRenderer.on('jarvis:revoked', () => cb()); },
+  // Fenêtre affichée seulement quand on appelle JARVIS : 'wake' (on l'appelle), 'done' (échange fini), 'mic-on' / 'mic-off'
+  voiceEvent: (kind) => ipcRenderer.send('jarvis:voice', String(kind)),
+  onToggleMic: (cb) => { ipcRenderer.on('jarvis:toggle-mic', () => cb()); },
   connectAgent: (cfg) => ipcRenderer.invoke('jarvis:connect-agent', cfg),
   getAutonomy: () => ipcRenderer.invoke('jarvis:get-autonomy'),
   setAutonomy: (v) => ipcRenderer.invoke('jarvis:set-autonomy', v),

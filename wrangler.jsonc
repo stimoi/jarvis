@@ -5,12 +5,17 @@
   "workers_dev": true,
   "main": "cloud/src/index.js",
   "compatibility_date": "2025-09-01",
+  // Valeurs publiques de la connexion Google (le secret GOOGLE_CLIENT_SECRET reste dans le tableau de bord)
+  "vars": {
+    "GOOGLE_CLIENT_ID": "117257485601-q7apvlc7s7hcvae4i7nk3j9eufbg71qo.apps.googleusercontent.com",
+    "GOOGLE_REDIRECT_URI": "https://jarvis.avenox.fr/auth/google/callback"
+  },
   "assets": {
     "directory": "./web",
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
-    "run_worker_first": ["/api/*", "/ws", "/downloads/*"]
+    "run_worker_first": ["/api/*", "/ws", "/downloads/*", "/auth/google/*"]
   },
   "durable_objects": {
     "bindings": [{ "name": "HUB", "class_name": "UserHub" }]

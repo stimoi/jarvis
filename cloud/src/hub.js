@@ -4,8 +4,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import { chat } from '../../shared/ai.js';
 import { loadProviders } from './providers.js';
-import { AGENT_TOOLS, SERVER_TOOLS, INFO_TOOLS, toOpenAITools } from '../../shared/tools.js';
+import { AGENT_TOOLS, SERVER_TOOLS, INFO_TOOLS, GOOGLE_TOOLS, toOpenAITools } from '../../shared/tools.js';
 import { infoTool } from './info.js';
+import { googleTool, isConnected, NEEDS_APPROVAL, approvalSummary } from './google.js';
 import { systemPrompt } from '../../shared/prompt.js';
 import { rcOpts, cleanAppState } from '../../shared/rc.js';
 
@@ -272,6 +273,10 @@ export class UserHub extends DurableObject {
       const a = this.approvals.get(msg.id);
       if (!a) return;
       this.approvals.delete(msg.id);
+      if (a.local) {
+        a.local(!!msg.approved);
+        return this.#toClients({ type: 'approval_resolved', id: msg.id, approved: !!msg.approved });
+      }
       const agent = this.#agents().find((x) => x.deviceId === a.agentId);
       if (agent) send(agent.ws, { type: 'approval_decision', callId: msg.id, approved: !!msg.approved });
       this.#toClients({ type: 'approval_resolved', id: msg.id, approved: !!msg.approved });
@@ -291,6 +296,21 @@ export class UserHub extends DurableObject {
       }, timeoutMs);
       this.calls.set(callId, { resolve, reject, timer, agentId });
       send(agent.ws, { type: 'tool_call', callId, name, args });
+    });
+  }
+
+  /** Validation demandée à l'utilisateur pour une action du Worker (pas de PC impliqué). Vrai s'il accepte sous 2 minutes. */
+  #askLocal(tool, summary) {
+    if (!this.#sockets('client').length) return Promise.resolve(false); // personne pour valider
+    const id = crypto.randomUUID();
+    const request = { id, tool, level: 'risky', summary: String(summary).slice(0, 1500), reason: 'Action sur ton compte Google', agentName: 'Google', expiresAt: Date.now() + 120000 };
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (this.approvals.delete(id)) this.#toClients({ type: 'approval_resolved', id, approved: false, reason: 'expiré' });
+        resolve(false);
+      }, 120000);
+      this.approvals.set(id, { agentId: null, local: (ok) => { clearTimeout(timer); resolve(ok); }, request });
+      this.#toClients({ type: 'approval_request', ...request });
     });
   }
 
@@ -337,7 +357,8 @@ export class UserHub extends DurableObject {
       ...history,
       { role: 'user', content: text },
     ];
-    const tools = toOpenAITools([...(agent ? AGENT_TOOLS : []), ...SERVER_TOOLS, ...INFO_TOOLS]);
+    const google = await isConnected(this.env, Number(this.#meta('userId'))).catch(() => false);
+    const tools = toOpenAITools([...(agent ? AGENT_TOOLS : []), ...SERVER_TOOLS, ...INFO_TOOLS, ...(google ? GOOGLE_TOOLS : [])]);
     const ai = await loadProviders(this.env);
 
     let final = '';
@@ -404,6 +425,11 @@ export class UserHub extends DurableObject {
         out = { text: c ? 'Oublié.' : 'Souvenir introuvable.' };
       } else if (name === 'get_weather' || name === 'get_schedule') {
         out = { text: await infoTool(this.env, name, args) };
+      } else if (GOOGLE_TOOLS.some((t) => t.name === name)) {
+        const userId = Number(this.#meta('userId'));
+        if (!(await isConnected(this.env, userId))) out = { text: "Erreur : Google n'est pas connecté (Réglages › Google)." };
+        else if (NEEDS_APPROVAL.has(name) && !(await this.#askLocal(name, approvalSummary(name, args)))) out = { text: "Erreur : l'utilisateur a refusé ou n'a pas répondu à temps." };
+        else out = { text: await googleTool(this.env, userId, name, args) };
       } else if (!AGENT_TOOLS.some((t) => t.name === name)) {
         out = { text: `Erreur : outil inconnu (${name}).` };
       } else if (!agent) {

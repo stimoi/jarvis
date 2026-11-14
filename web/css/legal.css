@@ -1,0 +1,10 @@
+/* ===== Pages légales (confidentialité, conditions) ===== */
+.legal { width: min(760px, 100% - 2 * var(--gutter)); margin: 0 auto; padding: 36px 0 70px; }
+.legal h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); font-weight: 300; letter-spacing: .08em; margin: 6px 0 4px; text-shadow: 0 0 24px #1a9bff66; }
+.legal .upd { color: var(--muted); font-size: .85rem; margin: 0 0 28px; }
+.legal h2 { font-size: .8rem; letter-spacing: .3em; text-transform: uppercase; color: var(--cyan); margin: 30px 0 8px; font-weight: 600; }
+.legal p, .legal li { color: #b9d4ea; line-height: 1.6; }
+.legal ul { padding-left: 20px; }
+.legal a { color: var(--cyan); }
+.legal .box { border: 1px solid var(--line2); background: #04101f99; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.legal footer { margin-top: 40px; color: var(--muted); font-size: .85rem; }

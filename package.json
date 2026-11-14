@@ -1,6 +1,6 @@
 {
     "name": "jarvis",
-    "version": "0.5.1",
+    "version": "0.5.2",
     "private": true,
     "description": "JARVIS - assistant vocal propulsé par l'IA (Groq / xAI), contrôle du PC depuis le PC ou le téléphone",
     "type": "module",

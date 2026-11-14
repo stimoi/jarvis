@@ -20,12 +20,15 @@ const S = {
   busy: false,
   voiceMode: 'off', // off | passive | listening
   phase: 'idle', // idle | thinking | speaking
-  prefs: { speak: true, speakAll: false, follow: true, voiceOk: false, debug: false, depth: 0.86, ...store.get('jv-prefs', {}) },
+  prefs: { speak: true, speakAll: false, follow: false, voiceOk: false, debug: false, depth: 0.86, ...store.get('jv-prefs', {}) },
   approvals: [],
   stats: { cpu: [], ram: [] },
   appStatus: {}, // état des mises à jour de l'appli de bureau, par PC
   connAt: {}, // date de dernière connexion de chaque PC (pour repérer une reconnexion)
 };
+
+// v0.5.2 : après une réponse, JARVIS ne se réactive plus tout seul (il faut redire « Jarvis ») ; le mode conversation reste activable.
+if (store.get('jv-prefs-v', 1) < 2) { S.prefs.follow = false; store.set('jv-prefs', S.prefs); store.set('jv-prefs-v', 2); }
 
 if (!S.token) location.replace(`/auth/?next=${encodeURIComponent(location.pathname)}`);
 
@@ -239,27 +242,56 @@ function browserSpeak(text) {
 
 const clean = (t) => t.replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/g, ' lien ').replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').trim();
 
+// Le micro reste ouvert pendant que JARVIS parle (annulation d'écho du navigateur) : dire « Jarvis… » lui coupe la parole.
+// `spokenText` sert à ignorer ce que le micro capte de sa propre voix.
+let spokenText = '';
+let speakSeq = 0; // chaque nouvelle phrase / interruption invalide les lectures en cours
 async function speak(text) {
   const t = clean(text).slice(0, 1200);
   if (!t) return;
-  voice?.pause(true);
+  const seq = ++speakSeq;
+  spokenText = t;
+  voice?.setQuick(true);
   setPhase('speaking');
   try {
     if (S.agents.some((a) => a.tts)) {
       try {
         const ab = await (await api('/api/tts', { method: 'POST', body: { text: t } })).arrayBuffer();
+        if (seq !== speakSeq) return; // interrompu pendant la synthèse
         await playDeep(ab);
-      } catch { await browserSpeak(t); }
+      } catch { if (seq === speakSeq) await browserSpeak(t); }
     } else await browserSpeak(t);
   } finally {
-    setPhase(S.busy ? 'thinking' : 'idle');
-    setTimeout(() => voice?.pause(false), 350);
+    if (seq === speakSeq) {
+      setPhase(S.busy ? 'thinking' : 'idle');
+      voice?.setQuick(false);
+      setTimeout(() => { if (seq === speakSeq) spokenText = ''; }, 1500); // l'écho de la fin de phrase arrive après
+    }
   }
+  return seq === speakSeq; // false : on lui a coupé la parole
 }
 function stopSpeaking() {
+  speakSeq++;
   try { currentSource?.stop(); } catch {}
   currentSource = null;
   try { speechSynthesis.cancel(); } catch {}
+  voice?.setQuick(false);
+  if (S.phase === 'speaking') setPhase(S.busy ? 'thinking' : 'idle');
+}
+const words = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().match(/[a-z0-9]+/g) || [];
+/** Le micro a-t-il simplement capté la voix de JARVIS ? (la majorité des mots entendus sont dans la phrase qu'il prononce) */
+function isEcho(text) {
+  if (!spokenText) return false;
+  const heard = words(text); const said = new Set(words(spokenText));
+  return heard.length > 0 && heard.filter((w) => said.has(w)).length / heard.length >= 0.6;
+}
+
+// ---------------------------------------------------------------- appli de bureau : fenêtre affichée seulement quand on appelle JARVIS
+const winEvent = (kind) => { try { desktop?.voiceEvent?.(kind); } catch {} };
+/** Fin d'un échange : l'appli peut se remettre en arrière-plan (sauf validation en attente ou écoute en cours). */
+function exchangeDone() {
+  if (S.approvals.length || S.voiceMode === 'listening' || S.phase !== 'idle') return;
+  winEvent('done');
 }
 
 // ---------------------------------------------------------------- voix : écoute
@@ -272,15 +304,15 @@ function enterListening(ms = 8000) {
   if (S.voiceMode === 'off') return;
   clearTimeout(listenTimer);
   setVoice('listening');
-  listenTimer = setTimeout(() => { if (S.voiceMode === 'listening') setVoice('passive'); }, ms);
+  listenTimer = setTimeout(() => { if (S.voiceMode === 'listening') { setVoice('passive'); exchangeDone(); } }, ms);
 }
 
 async function onSegment(blob) {
-  if (S.voiceMode === 'off' || S.phase !== 'idle') return;
+  if (S.voiceMode === 'off') return;
   // Garde-fou de quota (Whisper gratuit : ~20 requêtes/min) : en veille on limite le débit.
   const now = Date.now();
   while (sttStamps.length && now - sttStamps[0] > 60000) sttStamps.shift();
-  if (S.voiceMode === 'passive' && sttStamps.length >= 14) return;
+  if (S.voiceMode === 'passive' && sttStamps.length >= (S.phase === 'idle' ? 14 : 24)) return;
   if (sttBusy >= 2) return;
   sttStamps.push(now);
   sttBusy++;
@@ -297,11 +329,24 @@ async function onSegment(blob) {
 function handleTranscript(text) {
   if (!text || isHallucination(text)) return;
   if (S.prefs.debug) $('#heard').textContent = `« ${text} »`;
+  // Pendant qu'il parle ou réfléchit : seul « Jarvis … » compte (n'importe où dans la phrase, pour couvrir le bruit de fond),
+  // et jamais l'écho de sa propre voix.
+  if (S.phase !== 'idle') {
+    const wake = findWake(text, 12);
+    if (!wake.found || (isEcho(text) && findWake(spokenText, 999).found)) return;
+    beep(990, 0.1);
+    winEvent('wake');
+    stopSpeaking(); // il se tait dès qu'on l'appelle
+    if (wake.command.length >= 2) submitVoice(wake.command, false, true);
+    else enterListening(9000);
+    return;
+  }
   const wake = findWake(text);
   if (S.voiceMode === 'listening') {
     submitVoice(wake.found ? wake.command || '' : text, wake.found && !wake.command);
   } else if (S.voiceMode === 'passive' && wake.found) {
     beep(990, 0.1);
+    winEvent('wake');
     if (wake.command.length >= 2) submitVoice(wake.command);
     else enterListening(9000);
   }
@@ -309,11 +354,33 @@ function handleTranscript(text) {
 
 const YES = /^(oui|ouais|ok|okay|d'accord|vas-y|go|confirme|je confirme|autorise|j'autorise|affirmatif)\b/i;
 const NO = /^(non|nan|refuse|annule|stop|surtout pas|n'fais pas|negatif|négatif)\b/i;
+// « Jarvis mute », « Jarvis tais-toi », « Jarvis silence »… : il se tait (la tâche en cours continue, sa réponse s'affiche sans être lue).
+const MUTE = /^(mute|mutes|muet|silence|chut+|tais[- ]?toi|taisez[- ]?vous|ferme[- ]la|la ferme|arr[eê]te de parler|tu peux te taire|ça suffit|ca suffit)\b/i;
+// « Jarvis micro », « Jarvis coupe le micro » : coupe l'écoute.
+const MIC_OFF = /^(micro|mic|microphone|coupe (le |ton )?micro|micro off|arr[eê]te d'[ée]couter|n'[ée]coute plus|arr[eê]te l'[ée]coute)\b/i;
+const STOP = /^(stop|arrête|arrete|annule|laisse tomber|stoppe)[\s.!]*$/i;
 
-function submitVoice(cmd, onlyWake) {
+function submitVoice(cmd, onlyWake, interrupting = false) {
   clearTimeout(listenTimer);
   if (onlyWake || !cmd) return enterListening(9000);
-  if (/^(stop|arrête|arrete|annule|laisse tomber|tais-toi)[\s.!]*$/i.test(cmd)) { cancelAll(); return setVoice('passive'); }
+  const c = cmd.replace(/[.!?…]+$/, '').trim();
+  if (MUTE.test(c)) {
+    stopSpeaking();
+    if (S.busy || S.phase === 'thinking') S.silent = true; // la réponse en préparation ne sera pas lue
+    beep(520, 0.12, 0.04);
+    setVoice('passive');
+    return exchangeDone();
+  }
+  if (MIC_OFF.test(c)) {
+    stopSpeaking();
+    beep(660, 0.1, 0.05); setTimeout(() => beep(440, 0.16, 0.05), 120);
+    addMsg('sys', desktop ? 'Micro coupé. Pour le réactiver : bouton micro, icône JARVIS (menu) ou Ctrl+Alt+J.' : 'Micro coupé. Touchez le bouton micro pour le réactiver.');
+    if (S.voiceMode !== 'off') toggleMic();
+    winEvent('done');
+    return;
+  }
+  if (STOP.test(c)) { cancelAll(); setVoice('passive'); return exchangeDone(); }
+  if (interrupting && (S.busy || S.phase === 'thinking')) { wsSend({ type: 'cancel' }); S.skipAbort = true; } // nouvelle demande : l'ancienne est abandonnée
   const ap = S.approvals[0];
   if (ap) {
     if (S.prefs.voiceOk && ap.level === 'risky' && YES.test(cmd)) return answerApproval(true);
@@ -332,6 +399,7 @@ async function toggleMic() {
     setVoice('off');
     onLevel(0);
     store.set('jv-mic', false);
+    winEvent('mic-off');
     return;
   }
   try {
@@ -339,6 +407,7 @@ async function toggleMic() {
     await voice.start();
     setVoice('passive');
     store.set('jv-mic', true);
+    winEvent('mic-on');
     keepAwake();
   } catch (e) {
     voice = null;
@@ -378,6 +447,7 @@ function connectWs() {
 const wsSend = (m) => S.ws?.readyState === 1 && S.ws.send(JSON.stringify(m));
 const remote = createRemote({ send: wsSend, getAgent: () => S.agents[S.agents.length - 1] });
 window.__remote = remote; // utile pour les tests et le dépannage dans la console
+window.__voice = { handleTranscript: (t) => handleTranscript(t), speak: (t) => speak(t), state: S, setPhase: (p) => setPhase(p), setVoice: (m) => setVoice(m) };
 setInterval(() => S.ws?.readyState === 1 && S.ws.send('ping'), 25000);
 
 function onWs(m) {
@@ -418,15 +488,25 @@ function onWs(m) {
       activity(m.id, m.name, '', m.ok ? 'ok' : 'fail');
       break;
     }
-    case 'assistant_message':
+    case 'assistant_message': {
       addMsg('assistant', m.text);
-      if (mine && S.prefs.speak && (m.via === 'voice' || S.prefs.speakAll)) {
-        speak(m.text).then(() => { if (S.prefs.follow && S.voiceMode !== 'off' && S.approvals.length === 0) enterListening(7000); });
-      }
+      if (!mine) break;
+      // Réponse d'une demande annulée (« Très bien, j'arrête. ») : affichée, jamais lue.
+      if (S.skipAbort && /^Très bien, j.arrête\.?$/.test(m.text)) { S.skipAbort = false; break; }
+      const silent = S.silent; S.silent = false;
+      if (!silent && S.prefs.speak && (m.via === 'voice' || S.prefs.speakAll)) {
+        // Après sa réponse il repasse en veille : il faut redire « Jarvis » (sauf si le mode conversation est activé).
+        speak(m.text).then((finished) => {
+          if (!finished) return; // interrompu : la suite est gérée par l'interruption
+          if (S.prefs.follow && S.voiceMode !== 'off' && S.approvals.length === 0) enterListening(7000);
+          else exchangeDone();
+        });
+      } else setTimeout(exchangeDone, 1500);
       break;
+    }
     case 'error':
       addMsg('error', m.message);
-      if (mine) setPhase('idle');
+      if (mine) { setPhase('idle'); setTimeout(exchangeDone, 4000); }
       break;
     case 'approval_request': showApproval(m); break;
     case 'approval_resolved': closeApproval(m.id, m); break;
@@ -437,10 +517,12 @@ const brief = (a) => { const s = a ? Object.values(a).map((v) => (typeof v === '
 function sendChat(text, via = 'text') {
   if (!text.trim()) return;
   addMsg('user', text + (via === 'voice' ? ' 🎙' : ''));
+  S.silent = false;
   setPhase('thinking');
   wsSend({ type: 'chat', text, via, cid: S.cid, agentId: S.agents[S.agents.length - 1]?.id });
 }
 function cancelAll() {
+  if (S.busy || S.phase === 'thinking') S.skipAbort = true;
   wsSend({ type: 'cancel' });
   stopSpeaking();
   setPhase('idle');
@@ -451,6 +533,7 @@ function showApproval(req) {
   if (!S.approvals.find((a) => a.id === req.id)) S.approvals.push(req);
   navigator.vibrate?.([200, 100, 200]);
   beep(440, 0.25, 0.08);
+  winEvent('wake'); // la validation doit être visible
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') new Notification('JARVIS — validation requise', { body: req.summary.slice(0, 120) });
   if (!$('#approval').open) renderApproval();
   if (S.prefs.speak && S.voiceMode !== 'off') {
@@ -485,6 +568,7 @@ function closeApproval(id, info) {
   S.approvals.splice(i, 1);
   addMsg('sys', info.approved ? 'Action autorisée.' : `Action refusée${info.reason ? ` (${info.reason})` : ''}.`);
   renderApproval();
+  setTimeout(exchangeDone, 1500);
 }
 $('#ap-allow').onclick = () => answerApproval(true);
 $('#ap-deny').onclick = () => answerApproval(false);
@@ -515,15 +599,37 @@ async function enterApp() {
   if (desktop) {
     // Appli de bureau : le micro est autorisé d'office et le PC s'associe automatiquement au compte.
     toggleMic();
-    try {
-      if (!(await desktop.agentConfigured?.())) {
-        const name = (await desktop.hostname?.()) || 'Mon PC';
-        const dev = await json('/api/devices', { method: 'POST', body: { name } });
-        await desktop.connectAgent({ server: location.origin, token: dev.token, deviceId: dev.id, name });
-        addMsg('sys', `PC « ${name} » associé à votre compte.`);
-      }
-    } catch (e) { addMsg('error', `Association du PC impossible : ${e.message}`); }
+    await pairPc();
+    // PC retiré du compte pendant que l'appli tourne : on ne le ré-associe PAS en silence (sinon « Révoquer » ne servirait à rien
+    // sur un PC perdu) ; la session se ferme, et il se ré-associe à la prochaine connexion volontaire (pairPc ci-dessous).
+    if (!pairHooked) {
+      pairHooked = true;
+      desktop.onRevoked?.(() => { if (S.token) logout(); });
+      desktop.onToggleMic?.(() => toggleMic()); // menu de l'icône ou raccourci Ctrl+Alt+J
+    }
   }
+}
+
+/** Associe ce PC au compte connecté. Refait l'association si le PC a été retiré du compte (jeton mort) ou appartient à un autre compte. */
+let pairHooked = false;
+let pairing = false;
+async function pairPc() {
+  if (pairing) return;
+  pairing = true;
+  try {
+    if (await desktop.agentConfigured?.()) {
+      const { deviceId } = (await desktop.agentInfo?.()) || {};
+      if (!deviceId) return; // ancienne configuration sans identifiant : le jeton mort sera signalé par l'agent
+      const { devices } = await json('/api/devices');
+      if (devices.some((d) => d.id === deviceId)) return; // déjà associé à ce compte
+    }
+    const name = (await desktop.hostname?.()) || 'Mon PC';
+    const dev = await json('/api/devices', { method: 'POST', body: { name } });
+    await desktop.connectAgent({ server: location.origin, token: dev.token, deviceId: dev.id, name });
+    addMsg('sys', `PC « ${name} » associé à votre compte.`);
+    setTimeout(loadDevices, 3000);
+  } catch (e) { addMsg('error', `Association du PC impossible : ${e.message}`); }
+  finally { pairing = false; }
 }
 
 
@@ -614,7 +720,7 @@ async function openSettings() {
     if (s.isAdmin) { loadInvites(); if (s.cloud) { loadProviders(); loadInfoSettings(); } }
   } catch {}
   await loadDevices();
-  loadVoices(); loadAccounts();
+  loadVoices(); loadAccounts(); loadGoogle();
   if (!d.open) d.showModal();
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
@@ -759,6 +865,35 @@ async function loadProviders() {
       box.append(row);
     }
   } catch { $('#set-providers').hidden = true; }
+}
+// Compte Google (Gmail + Agenda) : la connexion passe par Google puis revient sur /chat/?google=…
+async function loadGoogle() {
+  const sec = $('#set-google');
+  try {
+    const g = await json('/api/google');
+    sec.hidden = !g.available;
+    $('#google-state').textContent = g.connected ? `— ${g.email}` : '';
+    $('#btn-google').textContent = g.connected ? 'Reconnecter' : 'Connecter Google';
+    $('#btn-google-off').hidden = !g.connected;
+  } catch { sec.hidden = true; }
+}
+$('#btn-google').onclick = async () => {
+  try {
+    const { url } = await json('/api/google/connect', { method: 'POST' });
+    location.href = url;
+  } catch (e) { addMsg('error', e.message); }
+};
+$('#btn-google-off').onclick = async () => {
+  if (!confirm('Déconnecter Google ? JARVIS ne pourra plus lire ton Gmail ni ton agenda.')) return;
+  try { await api('/api/google', { method: 'DELETE' }); addMsg('sys', 'Google déconnecté.'); loadGoogle(); } catch (e) { addMsg('error', e.message); }
+};
+{
+  const r = new URLSearchParams(location.search).get('google');
+  if (r) {
+    history.replaceState(null, '', location.pathname);
+    const msg = { ok: 'Google est connecté.', denied: 'Connexion Google annulée.', scopes: 'Il manque des autorisations : coche toutes les cases demandées par Google.', error: 'La connexion Google a échoué, réessaie.' }[r];
+    if (msg) setTimeout(() => addMsg(r === 'ok' ? 'sys' : 'error', msg), 800);
+  }
 }
 async function loadInvites() {
   try {

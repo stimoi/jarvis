@@ -1,10 +1,10 @@
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "shell": 1,
-  "sha256": "1582de294d725780a1a5dd00df63c833b321d7fcc2d1550dab7ba7f0ee4428d1",
-  "size": 311611,
-  "url": "https://github.com/stimoi/jarvis/releases/download/v0.5.1/JARVIS-update-0.5.1.zip",
+  "sha256": "9fb1be79b097c71358f9322e403e4ee1f8158ffb250f44d30cfcf3f68c02500a",
+  "size": 313655,
+  "url": "https://github.com/stimoi/jarvis/releases/download/v0.5.2/JARVIS-update-0.5.2.zip",
   "notes": "Améliorations et corrections.",
-  "date": "2026-11-11T17:49:35.607Z",
-  "sig": "AOuUbuABRd0k1WZABC64Mj4yeKkYGZkK7576IDpDxdKe+mMpZGOLbWekkvF2L/WFlzmAerQ+gRvG/dQBRJeUDw=="
+  "date": "2026-11-14T11:57:30.705Z",
+  "sig": "HrYiuEdEexNOsbzPjcRxv+3m9KDkA/YoizGaW5F4qAEFPW1IqRpGOhGcJtK6xYinMobQnrC1vosPeNKbBbncAw=="
 }

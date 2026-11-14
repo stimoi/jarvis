@@ -30,3 +30,10 @@ CREATE TABLE IF NOT EXISTS settings (
   k TEXT PRIMARY KEY,
   v TEXT
 );
+CREATE TABLE IF NOT EXISTS google_accounts (
+  user_id INTEGER PRIMARY KEY,
+  email TEXT NOT NULL,
+  refresh_enc TEXT NOT NULL,
+  scopes TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
